@@ -1,0 +1,21 @@
+# Entorno virtual
+venv/
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+
+# Archivos de datos generados
+*.csv
+
+# Archivos de sistema
+.DS_Store
+
+# Archivos de entrenamiento
+*.pcap
+*.csv
+
+# Modelos de machine learning
+*.h5
+*.pkl
+*.npy
