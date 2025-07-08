@@ -49,8 +49,8 @@ def generate_csv(normal_dir, malware_dir, output_csv):
 
 if __name__ == '__main__':
     # Rutas en tu Mac (ajústalas a tu estructura real)
-    normal_dir = '/Users/rodrigo/Documents/uade/tesis/data/Benign/'
-    malware_dir = '/Users/rodrigo/Documents/uade/tesis/data/Malware/'
-    output_csv = '/Users/rodrigo/Documents/uade/tesis/data/traffic_dataset.small.csv'
+    normal_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/small/Benign/'
+    malware_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/small/Malware/'
+    output_csv = 'C:/Users/Elias/Desktop/pfi/data/traffic_dataset_small.csv'
 
     generate_csv(normal_dir, malware_dir, output_csv)

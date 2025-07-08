@@ -3,15 +3,15 @@ from tensorflow.keras.models import load_model
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
-# Cargar datos y modelo
-print("Cargando datos...")
-X = np.load('X.npy')
-y = np.load('y_cat.npy')
+# Cargar modelo
 model = load_model('convlstm_model.h5')
 
-# Separar en train/test
-print("Dividiendo en train/test...")
-_, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Cargar train/test directamente de archivos
+print("Cargando splits de entrenamiento y prueba...")
+X_train = np.load('X_train.npy')
+X_test = np.load('X_test.npy')
+y_train = np.load('y_train.npy')
+y_test = np.load('y_test.npy')
 
 # Evaluar
 print("Evaluando precisión general...")

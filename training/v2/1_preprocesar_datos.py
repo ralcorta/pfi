@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
+from tensorflow.keras.utils import to_categorical
 
 # ───────────────────────────────────────────────
 # 1. Configuración
 # ───────────────────────────────────────────────
 CSV_TYPE = '_small' # 'small' o 'full'
 PAYLOAD_LEN = 1024  # 32x32 para imagen
-CSV_PATH = f'/Users/rodrigo/Documents/uade/tesis/data/traffic_dataset{CSV_TYPE}.csv'
+CSV_PATH = f'C:/Users/Elias/Desktop/pfi/data/traffic_dataset{CSV_TYPE}.csv'
 
 # ───────────────────────────────────────────────
 # 2. Cargar y preparar los datos
@@ -42,7 +43,6 @@ print("---------------------------------------")
 # One-hot encoding
 # Etiquetas a formato categórico (0 → [1,0], 1 → [0,1])
 print("Transformando etiquetas...")
-from tensorflow.keras.utils import to_categorical
 y_cat = to_categorical(y, num_classes=2)
 print(f"Dimensiones de y_cat: {y_cat.shape}")
 print(f"Ejemplo de y_cat: {y_cat[0]}")
