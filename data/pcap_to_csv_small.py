@@ -1,56 +1,65 @@
 import os
-import pandas as pd
-from scapy.all import rdpcap, TCP, UDP, Raw
+import numpy as np
+from scapy.all import rdpcap, TCP, UDP, Raw, IP
+from collections import defaultdict
 
-PAYLOAD_LEN = 1024  # número fijo según DeepMAL
+PAYLOAD_LEN = 1024
+TIME_STEPS = 10
 
-def extract_features(pcap_path, label):
-    rows = []
+# Agrupa por flujo (5-tuple)
+def extract_flows(pcap_path, label):
+    flows = defaultdict(list)
     packets = rdpcap(pcap_path)
 
     for pkt in packets:
-        if (pkt.haslayer(TCP) or pkt.haslayer(UDP)) and pkt.haslayer(Raw):
+        if IP in pkt and (TCP in pkt or UDP in pkt) and Raw in pkt:
             try:
-                src_port = pkt.sport
-                dst_port = pkt.dport
+                proto = 'TCP' if TCP in pkt else 'UDP'
+                flow_id = (
+                    pkt[IP].src,
+                    pkt[IP].dst,
+                    pkt.sport,
+                    pkt.dport,
+                    proto
+                )
                 payload = bytes(pkt[Raw].load)
-                payload_len = len(payload)
-                payload_bytes = payload[:PAYLOAD_LEN] + bytes([0] * (PAYLOAD_LEN - len(payload)))
-                row = [label, src_port, dst_port, payload_len] + list(payload_bytes)
-                rows.append(row)
+                padded = payload[:PAYLOAD_LEN] + bytes([0] * (PAYLOAD_LEN - len(payload)))
+                flows[flow_id].append(list(padded))
             except Exception as e:
-                print(f"Error procesando paquete en {pcap_path}: {e}")
-    return rows
+                print(f"Error en {pcap_path}: {e}")
+    
+    sequences = []
+    labels = []
+    for seq in flows.values():
+        if len(seq) >= TIME_STEPS:
+            clip = seq[:TIME_STEPS]  # Solo los primeros N paquetes
+            sequences.append(clip)
+            labels.append(label)
+    return sequences, labels
 
-def generate_csv(normal_dir, malware_dir, output_csv):
-    columns = ['label', 'src_port', 'dst_port', 'payload_len'] + [f'byte_{i}' for i in range(PAYLOAD_LEN)]
+def generate_sequences(normal_dir, malware_dir, output_npz):
+    all_X, all_y = [], []
 
-    # Crear archivo CSV vacío con encabezados
-    with open(output_csv, 'w') as f:
-        pd.DataFrame(columns=columns).to_csv(f, index=False)
-
-    # Función auxiliar para procesar un directorio
     def process_dir(directory, label):
         for filename in os.listdir(directory):
             if filename.endswith('.pcap'):
                 path = os.path.join(directory, filename)
-                print(f'Procesando {"malware" if label == 1 else "normal"}: {path}')
-                rows = extract_features(path, label)
-                if rows:
-                    df = pd.DataFrame(rows, columns=columns)
-                    df.to_csv(output_csv, mode='a', header=False, index=False)
-                break
+                print(f"Procesando {'malware' if label else 'benigno'}: {path}")
+                X, y = extract_flows(path, label)
+                all_X.extend(X)
+                all_y.extend(y)
 
-    # Procesar carpetas
     process_dir(normal_dir, label=0)
     process_dir(malware_dir, label=1)
 
-    print(f'\nCSV final guardado en: {output_csv}')
+    X_array = np.array(all_X).reshape(-1, TIME_STEPS, 32, 32, 1) / 255.0
+    y_array = np.eye(2)[np.array(all_y)]  # one-hot
+    np.savez(output_npz, X=X_array, y=y_array)
+    print(f"Dataset guardado en {output_npz} con {len(all_X)} flujos")
 
 if __name__ == '__main__':
-    # Rutas en tu Mac (ajústalas a tu estructura real)
-    normal_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/small/Benign/'
-    malware_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/small/Malware/'
-    output_csv = 'C:/Users/Elias/Desktop/pfi/data/traffic_dataset_small.csv'
-
-    generate_csv(normal_dir, malware_dir, output_csv)
+    generate_sequences(
+        normal_dir='C:/Users/Elias/Desktop/pfi/data/backup/small/Benign/',
+        malware_dir='C:/Users/Elias/Desktop/pfi/data/backup/small/Malware/',
+        output_npz='C:/Users/Elias/Desktop/pfi/data/flow_dataset.npz'
+    )

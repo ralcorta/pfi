@@ -1,56 +1,28 @@
-import pandas as pd
 import numpy as np
-from tensorflow.keras.utils import to_categorical
 
-# ───────────────────────────────────────────────
-# 1. Configuración
-# ───────────────────────────────────────────────
-CSV_TYPE = '_small' # 'small' o 'full'
-PAYLOAD_LEN = 1024  # 32x32 para imagen
-CSV_PATH = f'C:/Users/Elias/Desktop/pfi/data/traffic_dataset{CSV_TYPE}.csv'
+data = np.load('C:/Users/Elias/Desktop/pfi/data/flow_dataset.npz')
+X, y = data['X'], data['y']
 
-# ───────────────────────────────────────────────
-# 2. Cargar y preparar los datos
-# ───────────────────────────────────────────────
-print("Iniciando...")
-print("---------------------------------------")
-print("Cargando datos...")
-df = pd.read_csv(CSV_PATH)
-print("CSV cargado!")
-print("---------------------------------------")
+print("Datos cargados del npz")
+print("Shape X:", X.shape)  # (n_flows, TIME_STEPS, 32, 32, 1)
+print("Shape y:", y.shape)
 
-# Solo usamos los bytes del payload
-print("Preparando datos...")
-X_raw = df[[f'byte_{i}' for i in range(PAYLOAD_LEN)]].astype(np.uint8).values
-y = df['label'].values
-print(f"Dimensiones de X_raw: {X_raw.shape}")
-print(f"Dimensiones de y: {y.shape}")
-print("---------------------------------------")
-
-# Normalización simple
-print("Escalando datos...")
-X_scaled = X_raw / 255.0
-print(f"Dimensiones de X_scaled: {X_scaled.shape}")
-print("---------------------------------------")
-
-# Reformatear para ConvLSTM
-# Reshape a (samples, time_steps=1, height=32, width=32, channels=1)
-print("Reformateando datos...")
-X = X_scaled.reshape(-1, 1, 32, 32, 1)
-print(f"Dimensiones de X: {X.shape}")
-print("---------------------------------------")
-
-# One-hot encoding
-# Etiquetas a formato categórico (0 → [1,0], 1 → [0,1])
-print("Transformando etiquetas...")
-y_cat = to_categorical(y, num_classes=2)
-print(f"Dimensiones de y_cat: {y_cat.shape}")
-print(f"Ejemplo de y_cat: {y_cat[0]}")
-print("---------------------------------------")
-
-# Guardar archivos preprocesados
-print("Guardando datos preprocesados...")
 np.save('X.npy', X)
-np.save('y_cat.npy', y_cat)
-print("Datos preprocesadcos guardados.")
-print("---------------------------------------")
+np.save('y_cat.npy', y)
+print("Guardado X.npy y y_cat.npy")
+
+
+# --- 3. 2_dividir_datos_train_test.py ---
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+X = np.load('X.npy')
+y = np.load('y_cat.npy')
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+np.save('X_train.npy', X_train)
+np.save('X_test.npy', X_test)
+np.save('y_train.npy', y_train)
+np.save('y_test.npy', y_test)
+print("Datos divididos y guardados")
