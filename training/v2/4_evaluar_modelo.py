@@ -2,7 +2,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 from sklearn.metrics import classification_report
 
-model = load_model('convlstm_model.h5')
+model = load_model('convlstm_model.keras')
 X_test = np.load('X_test.npy')
 y_test = np.load('y_test.npy')
 
