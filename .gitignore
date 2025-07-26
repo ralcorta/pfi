@@ -19,5 +19,4 @@ __pycache__/
 *.h5
 *.pkl
 *.npy
-*.keras
 *.npz

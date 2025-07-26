@@ -6,6 +6,8 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.utils.class_weight import compute_class_weight
 
+# Hay que usar este -> cambiar al full
+
 class DataGenerator(Sequence):
     def __init__(self, X_path, y_path, batch_size=32, shuffle=True, noise=False):
         self.X = np.load(X_path, mmap_mode='r')
