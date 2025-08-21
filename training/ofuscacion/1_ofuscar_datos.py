@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Cargar modelo y datos
 model = load_model('convlstm_model.keras')
@@ -50,3 +53,39 @@ np.save("X_adv.npy", X_adv.numpy())
 np.save("y_adv.npy", y_test)
 
 print("✅ Ejemplos adversarios guardados como X_adv.npy y y_adv.npy")
+
+# ───────────────────────────────────────────────
+# Matriz de confusión (PGD sobre X_test)
+# ───────────────────────────────────────────────
+
+labels = ["Benigno", "Malware"]
+
+cm = confusion_matrix(y_true, y_pred_adv, labels=[0, 1])
+print("\nMatriz de confusión (valores absolutos):")
+print(cm)
+
+# (opcional) versión normalizada por fila
+cm_norm = cm.astype(np.float64) / cm.sum(axis=1, keepdims=True)
+print("\nMatriz de confusión (normalizada por clase real):")
+print(np.round(cm_norm, 3))
+
+# Gráfico (una sola figura)
+fig, ax = plt.subplots(figsize=(5, 4))
+im = ax.imshow(cm, interpolation='nearest')  # sin especificar colores
+
+# Ticks y etiquetas
+ax.set_xticks([0, 1])
+ax.set_yticks([0, 1])
+ax.set_xticklabels(labels)
+ax.set_yticklabels(labels)
+ax.set_xlabel("Predicción")
+ax.set_ylabel("Real")
+ax.set_title("Matriz de confusión – PGD (modelo base)")
+
+# Anotar valores en cada celda
+for i in range(cm.shape[0]):
+    for j in range(cm.shape[1]):
+        ax.text(j, i, cm[i, j], ha="center", va="center")
+
+plt.tight_layout()
+plt.show()

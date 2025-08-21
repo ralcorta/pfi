@@ -5,6 +5,9 @@ from tensorflow.keras.utils import Sequence
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.utils.class_weight import compute_class_weight
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import TimeDistributed, Conv2D, MaxPooling2D, Flatten, LSTM, Dense, Dropout
+from tensorflow.keras.regularizers import l2
 
 # ───────────────────────────────────────────────
 # 1. Combinar datos reales + adversarios
@@ -71,17 +74,14 @@ class DataGenerator(Sequence):
 # 3. Definir modelo
 # ───────────────────────────────────────────────
 model = Sequential()
-model.add(ConvLSTM2D(
-    filters=2,
-    kernel_size=(3, 3),
-    activation='relu',
-    input_shape=(10, 32, 32, 1),
-    kernel_regularizer=l2(0.01)
-))
-model.add(Dropout(0.6))
-model.add(Flatten())
-model.add(Dense(4, activation='relu', kernel_regularizer=l2(0.02)))
-model.add(Dropout(0.6))
+model.add(TimeDistributed(Conv2D(8, (3, 3), activation='relu', padding='same'), input_shape=(10, 32, 32, 1)))
+model.add(TimeDistributed(MaxPooling2D((2, 2))))
+model.add(TimeDistributed(Conv2D(16, (3, 3), activation='relu', padding='same')))
+model.add(TimeDistributed(MaxPooling2D((2, 2))))
+model.add(TimeDistributed(Flatten()))
+model.add(LSTM(32))  # Aprende dependencias entre los 10 paquetes
+model.add(Dropout(0.5))
+model.add(Dense(16, activation='relu', kernel_regularizer=l2(0.01)))
 model.add(Dense(2, activation='softmax'))
 
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
