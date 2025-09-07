@@ -48,8 +48,8 @@ poetry run python script.py
 ```sh
 make install          # Instalar dependencias
 make shell            # Activar entorno virtual
-make run-detection    # Ejecutar detección de tráfico
-make run-training     # Entrenar modelo
+make sensor-live      # Monitoreo en vivo de ransomware
+make train-all        # Entrenar modelo completo
 make format           # Formatear código
 make lint             # Verificar estilo de código
 ```
@@ -58,15 +58,17 @@ make lint             # Verificar estilo de código
 
 - `make install` - Instalar dependencias
 - `make shell` - Activar entorno virtual
-- `make run-detection` - Ejecutar sistema de detección
-- `make run-training` - Entrenar modelo
-- `make run-evaluate` - Evaluar modelo
-- `make run-all-detection` - Pipeline completo de detección
-- `make run-all-adversarial` - Pipeline completo adversarial
+- `make sensor-live` - Monitoreo en vivo de ransomware
+- `make sensor-pcap` - Análisis de archivos PCAP
+- `make train` - Entrenar modelo
+- `make evaluate` - Evaluar modelo
+- `make train-all` - Pipeline completo de entrenamiento
+- `make train-adversarial-all` - Pipeline completo adversarial
 - `make format` - Formatear código con Black
 - `make lint` - Verificar estilo con Flake8
 - `make type-check` - Verificar tipos con MyPy
 - `make test` - Ejecutar tests
+- `make help` - Mostrar ayuda completa
 
 ### Configuración con pyenv (opcional)
 

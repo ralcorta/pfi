@@ -1,8 +1,0 @@
-model_path: "models/convlstm_model.keras"
-logging:
-  level: "INFO"
-  file: "logs/predictions.log"
-network:
-  interface: "eth0"
-  packet_count: 1000
-  timeout: 10
