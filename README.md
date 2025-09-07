@@ -54,6 +54,21 @@ make format           # Formatear código
 make lint             # Verificar estilo de código
 ```
 
+### Estructura del Proyecto
+
+```
+pfi/
+├── models/                    # Modelos y entrenamiento
+│   ├── convlstm_model.keras   # Modelo principal
+│   ├── data/                  # Datos de entrenamiento
+│   └── training/              # Scripts de entrenamiento
+│       ├── detection/         # Entrenamiento normal
+│       └── ofuscacion/        # Entrenamiento adversarial
+├── app/                       # Aplicaciones
+│   └── sensor/                # Sensor de ransomware
+└── pyproject.toml             # Configuración única
+```
+
 ### Comandos Disponibles
 
 - `make install` - Instalar dependencias

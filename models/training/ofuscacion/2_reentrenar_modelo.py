@@ -115,5 +115,5 @@ model.fit(
 # ───────────────────────────────────────────────
 # 7. Guardar modelo entrenado con adversarial training
 # ───────────────────────────────────────────────
-model.save('convlstm_model_adversarial.keras')
+model.save('../convlstm_model_adversarial.keras')
 print("✅ Modelo con entrenamiento adversarial guardado como convlstm_model_adversarial.keras")

@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 import pandas as pd
 from scapy.all import rdpcap, TCP, UDP, Raw
 
@@ -59,8 +61,25 @@ def generate_csv(normal_dir, malware_dir, output_csv):
     print(f'🧹 Total de paquetes descartados por payload corto (<{MIN_PAYLOAD_LEN} bytes): {total_discarded}')
 
 if __name__ == '__main__':
-    normal_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/full/Benign/'
-    malware_dir = 'C:/Users/Elias/Desktop/pfi/data/backup/full/Malware/'
-    output_csv = 'C:/Users/Elias/Desktop/pfi/data/traffic_dataset_full.csv'
+    # Get the project root directory (where this script is located)
+    PROJECT_ROOT = Path(__file__).parent.parent.parent
+    
+    # Use relative paths from project root
+    normal_dir = PROJECT_ROOT / "models" / "data" / "backup" / "Benign"
+    malware_dir = PROJECT_ROOT / "models" / "data" / "backup" / "Malware"
+    output_csv = PROJECT_ROOT / "models" / "data" / "traffic_dataset_full.csv"
+    
+    # Check if directories exist
+    if not normal_dir.exists():
+        print(f"❌ Normal directory not found: {normal_dir}")
+        sys.exit(1)
+    
+    if not malware_dir.exists():
+        print(f"❌ Malware directory not found: {malware_dir}")
+        sys.exit(1)
+    
+    print(f"📁 Using normal directory: {normal_dir}")
+    print(f"📁 Using malware directory: {malware_dir}")
+    print(f"📁 Output CSV: {output_csv}")
 
-    generate_csv(normal_dir, malware_dir, output_csv)
+    generate_csv(str(normal_dir), str(malware_dir), str(output_csv))

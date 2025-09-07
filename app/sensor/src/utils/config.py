@@ -78,8 +78,19 @@ class SensorConfig(BaseModel):
     @validator('model')
     def validate_model_path(cls, v):
         """Validate model path exists."""
-        if not Path(v.path).exists():
-            raise ValueError(f"Model file not found: {v.path}")
+        model_path = Path(v.path)
+        
+        # If it's a relative path, resolve it relative to the config file location
+        if not model_path.is_absolute():
+            # Get the directory where the config file is located
+            config_dir = Path(__file__).parent.parent.parent / "configs"
+            model_path = config_dir / v.path
+        
+        if not model_path.exists():
+            raise ValueError(f"Model file not found: {model_path}")
+        
+        # Update the path to the resolved absolute path
+        v.path = str(model_path.resolve())
         return v
 
     @validator('logging')

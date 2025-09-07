@@ -1,5 +1,5 @@
 model:
-  path: "/Users/rodrigo/Documents/uade/tesis/pfi/convlstm_model.keras"
+  path: "../../../models/convlstm_model.keras"
   input_shape: [10, 32, 32, 1]
 
 detection:

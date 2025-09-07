@@ -41,15 +41,15 @@ update:
 # Extraer datos de archivos PCAP a formato CSV
 # Uso: make extract ARGS="--input archivo.pcap --output datos.csv"
 extract:
-	poetry run python data/pcap_to_csv_full.py $(ARGS)
+	poetry run python models/data/pcap_to_csv_full.py $(ARGS)
 
 # Preprocesar datos de tráfico para entrenamiento del modelo
 preprocess:
-	poetry run python training/detection/1_preprocesar_datos.py
+	poetry run python models/training/detection/1_preprocesar_datos.py
 
 # Dividir datos en conjuntos de entrenamiento y prueba
 split-data:
-	poetry run python training/detection/2_dividir_datos_train_test.py
+	poetry run python models/training/detection/2_dividir_datos_train_test.py
 
 # =============================================================================
 # 3. ENTRENAMIENTO DE MODELOS
@@ -58,11 +58,11 @@ split-data:
 
 # Entrenar el modelo principal de detección
 train:
-	poetry run python training/detection/3_entrenar_modelo.py
+	poetry run python models/training/detection/3_entrenar_modelo.py
 
 # Evaluar el rendimiento del modelo entrenado
 evaluate:
-	poetry run python training/detection/4_evaluar_modelo.py
+	poetry run python models/training/detection/4_evaluar_modelo.py
 
 # Flujo completo de entrenamiento (preprocesar + dividir + entrenar + evaluar)
 train-all:
@@ -78,15 +78,15 @@ train-all:
 
 # Ofuscar datos para simular ataques adversarios
 obfuscate:
-	poetry run python training/ofuscacion/1_ofuscar_datos.py
+	poetry run python models/training/ofuscacion/1_ofuscar_datos.py
 
 # Re-entrenar modelo con datos ofuscados
 retrain-adversarial:
-	poetry run python training/ofuscacion/2_reentrenar_modelo.py
+	poetry run python models/training/ofuscacion/2_reentrenar_modelo.py
 
 # Evaluar modelo entrenado adversarialmente
 evaluate-adversarial:
-	poetry run python training/ofuscacion/3_evaluar_modelo_adversarial.py
+	poetry run python models/training/ofuscacion/3_evaluar_modelo_adversarial.py
 
 # Flujo completo de entrenamiento adversarial
 train-adversarial-all:
@@ -226,7 +226,7 @@ help:
 	@echo "   make check-all         - Verificar todo"
 	@echo ""
 	@echo "EJEMPLOS DE USO:"
-	@echo "  make sensor-pcap PCAP_FILE=data/small/Benign/Gmail.pcap"
+	@echo "  make sensor-pcap PCAP_FILE=models/data/small/Benign/Gmail.pcap"
 	@echo "  make sensor-pcap-threshold PCAP_FILE=archivo.pcap THRESHOLD=0.85"
 	@echo "  make train-all"
 	@echo ""

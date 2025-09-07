@@ -51,7 +51,7 @@ Create `configs/sensor.yaml`:
 
 ```yaml
 model:
-  path: "../../models/convlstm_model.keras"
+  path: "../../../models/convlstm_model.keras" # Relative path (resolved dynamically)
   input_shape: [10, 32, 32, 1]
 
 detection:
@@ -77,6 +77,17 @@ logging:
   level: "INFO"
   file: "logs/sensor.log"
 ```
+
+### Dynamic Path Resolution
+
+The sensor automatically resolves relative paths in the configuration file, making it portable across different development environments:
+
+- ✅ **Works on any developer's machine** - no hardcoded absolute paths
+- ✅ **Portable across operating systems** - Windows, macOS, Linux
+- ✅ **CI/CD friendly** - works in automated environments
+- ✅ **Collaborative development** - no path conflicts between team members
+
+The path `../../../models/convlstm_model.keras` is resolved relative to the config file location (`app/sensor/configs/`), ensuring it always points to the correct model file regardless of where the project is located.
 
 ## Architecture
 

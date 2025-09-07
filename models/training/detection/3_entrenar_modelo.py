@@ -92,4 +92,4 @@ model.fit(
 # ───────────────────────────────────────────────
 # 6. Guardar modelo
 # ───────────────────────────────────────────────
-model.save('convlstm_model.keras')
+model.save('../convlstm_model.keras')
