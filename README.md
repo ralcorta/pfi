@@ -1,40 +1,82 @@
 # AI for Ransomware Detection
 
-## Inicializar proyecto
+## Configuración del Proyecto
 
-Iniciar entorno python
+Este proyecto utiliza Poetry para la gestión de dependencias y entornos virtuales.
 
-```sh
-python -m venv venv
+### Prerrequisitos
 
-source venv/bin/activate
-```
+- Python 3.11+
+- Poetry (instalar desde [poetry.python.org](https://python-poetry.org/docs/#installation))
 
-### Freezar dependencias
+### Instalación
 
-```sh
-pip freeze > requirements.txt
-```
-
-### Instalar dependencias
+1. **Instalar Poetry** (si no está instalado):
 
 ```sh
-pip install -r requirements.txt
+curl -sSL https://install.python-poetry.org | python3 -
 ```
 
-### Desactivar entorno
+2. **Instalar dependencias del proyecto**:
 
 ```sh
-deactivate
+poetry install
 ```
 
-#### Como use python 3.11
+3. **Instalar dependencias de desarrollo** (opcional):
+
+```sh
+poetry install --with dev
+```
+
+### Uso
+
+**Activar el entorno virtual**:
+
+```sh
+poetry shell
+```
+
+**Ejecutar comandos sin activar el shell**:
+
+```sh
+poetry run python script.py
+```
+
+**Usar Makefile para comandos comunes**:
+
+```sh
+make install          # Instalar dependencias
+make shell            # Activar entorno virtual
+make run-detection    # Ejecutar detección de tráfico
+make run-training     # Entrenar modelo
+make format           # Formatear código
+make lint             # Verificar estilo de código
+```
+
+### Comandos Disponibles
+
+- `make install` - Instalar dependencias
+- `make shell` - Activar entorno virtual
+- `make run-detection` - Ejecutar sistema de detección
+- `make run-training` - Entrenar modelo
+- `make run-evaluate` - Evaluar modelo
+- `make run-all-detection` - Pipeline completo de detección
+- `make run-all-adversarial` - Pipeline completo adversarial
+- `make format` - Formatear código con Black
+- `make lint` - Verificar estilo con Flake8
+- `make type-check` - Verificar tipos con MyPy
+- `make test` - Ejecutar tests
+
+### Configuración con pyenv (opcional)
+
+Si usas pyenv para gestionar versiones de Python:
 
 ```sh
 echo -e 'export PYENV_ROOT="$HOME/.pyenv"\nexport PATH="$PYENV_ROOT/bin:$PATH"\neval "$(pyenv init --path)"\neval "$(pyenv init -)"\neval "$(pyenv virtualenv-init -)"' >> ~/.zshrc
 source ~/.zshrc
-pyenv activate tf-env
-python --version
+pyenv install 3.11.0
+pyenv local 3.11.0
 ```
 
 ---

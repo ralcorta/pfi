@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "ai-ransomware-detection"
+version = "0.1.0"
+description = "AI system for ransomware detection using network traffic analysis"
+authors = ["Rodrigo <rodrigo@example.com>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.11,<3.12"
+tensorflow = "2.15.0"
+numpy = "^1.24.0"
+pandas = "^2.0.0"
+scikit-learn = "^1.3.0"
+matplotlib = "^3.7.0"
+scapy = "^2.5.0"
+pyshark = "^0.6.0"
+pyyaml = "^6.0"
+pillow = "^10.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.0.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+detect-traffic = "app.network-traffic-detection.src.main:main"
+run-model = "run_model:main"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

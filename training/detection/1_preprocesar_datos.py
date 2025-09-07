@@ -8,7 +8,7 @@ from tensorflow.keras.utils import to_categorical
 CSV_TYPE = '_full'
 PAYLOAD_LEN = 1024
 MAX_ROWS_PER_PCAP = 1000
-CSV_PATH = f'C:/Users/Elias/Desktop/pfi/data/traffic_dataset{CSV_TYPE}.csv'
+CSV_PATH = f'data/traffic_dataset{CSV_TYPE}.csv'
 
 # ───────────────────────────────────────────────
 # 2. Cargar CSV y aplicar límite por pcap
