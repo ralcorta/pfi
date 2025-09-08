@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Script de prueba rápida para el modelo de ransomware
+Usa el dataset pequeño para entrenamiento rápido
+"""
+
 import numpy as np
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import (
@@ -11,17 +17,16 @@ from sklearn.utils.class_weight import compute_class_weight
 import joblib
 
 # ───────────────────────────────────────────────
-# 1. DataGenerator mejorado para ransomware
+# 1. DataGenerator simplificado
 # ───────────────────────────────────────────────
-class RansomwareDataGenerator(Sequence):
-    def __init__(self, X_path, y_path, X_ransomware_path, batch_size=32, shuffle=True, noise=False):
+class QuickDataGenerator(Sequence):
+    def __init__(self, X_path, y_path, X_ransomware_path, batch_size=16, shuffle=True):
         self.X = np.load(X_path, mmap_mode='r')
         self.y = np.load(y_path, mmap_mode='r')
         self.X_ransomware = np.load(X_ransomware_path, mmap_mode='r')
         self.batch_size = batch_size
-        self.length = self.X.shape[0]
+        self.length = min(1000, self.X.shape[0])  # Limitar a 1000 muestras para prueba rápida
         self.shuffle = shuffle
-        self.noise = noise
         self.indices = np.arange(self.length)
         if self.shuffle:
             np.random.shuffle(self.indices)
@@ -34,13 +39,6 @@ class RansomwareDataGenerator(Sequence):
         X_batch = self.X[indices]
         y_batch = self.y[indices]
         X_ransomware_batch = self.X_ransomware[indices]
-
-        # Agregar ruido leve para data augmentation
-        if self.noise:
-            noise_factor = 0.01
-            X_batch = X_batch + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=X_batch.shape)
-            X_batch = np.clip(X_batch, 0.0, 1.0)
-
         return [X_batch, X_ransomware_batch], y_batch
 
     def on_epoch_end(self):
@@ -48,56 +46,35 @@ class RansomwareDataGenerator(Sequence):
             np.random.shuffle(self.indices)
 
 # ───────────────────────────────────────────────
-# 2. Arquitectura híbrida CNN+LSTM+Features
+# 2. Modelo simplificado para prueba rápida
 # ───────────────────────────────────────────────
-def create_ransomware_model(sequence_length=20, payload_shape=(32, 32, 1), ransomware_features=10):
-    """
-    Modelo híbrido para detección de ransomware:
-    - CNN para extraer patrones espaciales de payloads
-    - LSTM para capturar dependencias temporales
-    - Dense layers para features específicas de ransomware
-    """
+def create_quick_model(sequence_length=20, payload_shape=(32, 32, 1), ransomware_features=10):
+    """Modelo simplificado para pruebas rápidas"""
     
     # Input para secuencias de payload
     payload_input = Input(shape=(sequence_length,) + payload_shape, name='payload_input')
     
-    # CNN para extraer features espaciales de cada frame
-    cnn_branch = TimeDistributed(Conv2D(16, (3, 3), activation='relu', padding='same'))(payload_input)
-    cnn_branch = TimeDistributed(BatchNormalization())(cnn_branch)
+    # CNN simplificado
+    cnn_branch = TimeDistributed(Conv2D(8, (3, 3), activation='relu', padding='same'))(payload_input)
     cnn_branch = TimeDistributed(MaxPooling2D((2, 2)))(cnn_branch)
-    
-    cnn_branch = TimeDistributed(Conv2D(32, (3, 3), activation='relu', padding='same'))(cnn_branch)
-    cnn_branch = TimeDistributed(BatchNormalization())(cnn_branch)
-    cnn_branch = TimeDistributed(MaxPooling2D((2, 2)))(cnn_branch)
-    
-    cnn_branch = TimeDistributed(Conv2D(64, (3, 3), activation='relu', padding='same'))(cnn_branch)
-    cnn_branch = TimeDistributed(BatchNormalization())(cnn_branch)
+    cnn_branch = TimeDistributed(Conv2D(16, (3, 3), activation='relu', padding='same'))(cnn_branch)
     cnn_branch = TimeDistributed(GlobalAveragePooling2D())(cnn_branch)
     
-    # LSTM para dependencias temporales
-    lstm_branch = LSTM(64, return_sequences=True, dropout=0.3, recurrent_dropout=0.3)(cnn_branch)
-    lstm_branch = LSTM(32, dropout=0.3, recurrent_dropout=0.3)(lstm_branch)
+    # LSTM simplificado
+    lstm_branch = LSTM(32, dropout=0.3)(cnn_branch)
     
     # Input para features específicas de ransomware
     ransomware_input = Input(shape=(ransomware_features,), name='ransomware_features_input')
     
-    # Dense layers para features de ransomware
-    ransomware_branch = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(ransomware_input)
-    ransomware_branch = BatchNormalization()(ransomware_branch)
+    # Dense layers simplificadas
+    ransomware_branch = Dense(16, activation='relu')(ransomware_input)
     ransomware_branch = Dropout(0.5)(ransomware_branch)
-    
-    ransomware_branch = Dense(16, activation='relu', kernel_regularizer=l2(0.01))(ransomware_branch)
-    ransomware_branch = Dropout(0.3)(ransomware_branch)
     
     # Concatenar ambas ramas
     combined = Concatenate()([lstm_branch, ransomware_branch])
     
     # Capas finales
-    combined = Dense(64, activation='relu', kernel_regularizer=l2(0.01))(combined)
-    combined = BatchNormalization()(combined)
-    combined = Dropout(0.5)(combined)
-    
-    combined = Dense(32, activation='relu', kernel_regularizer=l2(0.01))(combined)
+    combined = Dense(32, activation='relu')(combined)
     combined = Dropout(0.3)(combined)
     
     # Salida
@@ -109,32 +86,32 @@ def create_ransomware_model(sequence_length=20, payload_shape=(32, 32, 1), ranso
     return model
 
 # ───────────────────────────────────────────────
-# 3. Configuración y entrenamiento
+# 3. Entrenamiento rápido
 # ───────────────────────────────────────────────
-print("🚀 Iniciando entrenamiento del modelo de ransomware...")
+print("🚀 Iniciando entrenamiento rápido del modelo de ransomware...")
 
-# Crear modelo
-model = create_ransomware_model(sequence_length=20, payload_shape=(32, 32, 1), ransomware_features=10)
+# Crear modelo simplificado
+model = create_quick_model(sequence_length=20, payload_shape=(32, 32, 1), ransomware_features=10)
 model.compile(
     optimizer='adam',
     loss='categorical_crossentropy',
-    metrics=['accuracy', 'precision', 'recall']
+    metrics=['accuracy']
 )
 
-print("📊 Arquitectura del modelo:")
+print("📊 Arquitectura del modelo simplificado:")
 model.summary()
 
 # ───────────────────────────────────────────────
-# 4. Generadores de datos
+# 4. Generadores de datos rápidos
 # ───────────────────────────────────────────────
-print("📦 Configurando generadores de datos...")
-train_gen = RansomwareDataGenerator(
+print("📦 Configurando generadores de datos rápidos...")
+train_gen = QuickDataGenerator(
     'X_train.npy', 'y_train.npy', 'X_ransomware_train.npy',
-    batch_size=32, shuffle=True, noise=True
+    batch_size=16, shuffle=True
 )
-val_gen = RansomwareDataGenerator(
+val_gen = QuickDataGenerator(
     'X_test.npy', 'y_test.npy', 'X_ransomware_test.npy',
-    batch_size=32, shuffle=False, noise=False
+    batch_size=16, shuffle=False
 )
 
 # ───────────────────────────────────────────────
@@ -148,24 +125,17 @@ class_weights = dict(enumerate(weights))
 print(f"Pesos de clase: {class_weights}")
 
 # ───────────────────────────────────────────────
-# 6. Callbacks
+# 6. Callbacks simplificados
 # ───────────────────────────────────────────────
 callbacks = [
     EarlyStopping(
         monitor='val_loss',
-        patience=5,
+        patience=3,
         restore_best_weights=True,
         verbose=1
     ),
-    ReduceLROnPlateau(
-        monitor='val_loss',
-        factor=0.5,
-        patience=3,
-        min_lr=1e-7,
-        verbose=1
-    ),
     ModelCheckpoint(
-        '../convlstm_model_ransomware.keras',
+        '../convlstm_model_ransomware_quick.keras',
         monitor='val_accuracy',
         save_best_only=True,
         verbose=1
@@ -173,27 +143,50 @@ callbacks = [
 ]
 
 # ───────────────────────────────────────────────
-# 7. Entrenar modelo
+# 7. Entrenamiento rápido (solo 10 épocas)
 # ───────────────────────────────────────────────
-print("🏋️ Iniciando entrenamiento...")
+print("🏋️ Iniciando entrenamiento rápido (10 épocas)...")
 history = model.fit(
     train_gen,
     validation_data=val_gen,
-    epochs=50,
+    epochs=10,
     callbacks=callbacks,
     class_weight=class_weights,
     verbose=1
 )
 
 # ───────────────────────────────────────────────
-# 8. Guardar modelo final y métricas
+# 8. Guardar modelo y resultados
 # ───────────────────────────────────────────────
-print("💾 Guardando modelo final...")
-model.save('../convlstm_model_ransomware_final.keras')
+print("💾 Guardando modelo rápido...")
+model.save('../convlstm_model_ransomware_quick_final.keras')
 
 # Guardar historial de entrenamiento
-np.save('../training_history.npy', history.history)
+np.save('../training_history_quick.npy', history.history)
 
-print("✅ Entrenamiento completado!")
-print(f"📁 Modelo guardado en: convlstm_model_ransomware_final.keras")
-print(f"📊 Historial guardado en: training_history.npy")
+print("✅ Entrenamiento rápido completado!")
+print(f"📁 Modelo guardado en: convlstm_model_ransomware_quick_final.keras")
+print(f"📊 Historial guardado en: training_history_quick.npy")
+
+# ───────────────────────────────────────────────
+# 9. Evaluación rápida
+# ───────────────────────────────────────────────
+print("\n🔍 Evaluación rápida...")
+X_test = np.load('X_test.npy')[:100]  # Solo 100 muestras para evaluación rápida
+y_test = np.load('y_test.npy')[:100]
+X_ransomware_test = np.load('X_ransomware_test.npy')[:100]
+
+loss, accuracy = model.evaluate([X_test, X_ransomware_test], y_test, verbose=0)
+print(f"📈 Resultados rápidos:")
+print(f"  - Loss: {loss:.4f}")
+print(f"  - Accuracy: {accuracy:.4f}")
+
+# Predicciones
+y_pred_proba = model.predict([X_test, X_ransomware_test], verbose=0)
+y_pred = np.argmax(y_pred_proba, axis=1)
+y_true = np.argmax(y_test, axis=1)
+
+# Métricas básicas
+from sklearn.metrics import classification_report
+print(f"\n📊 Reporte de clasificación:")
+print(classification_report(y_true, y_pred, target_names=['Benigno', 'Ransomware']))
