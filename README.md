@@ -1,5 +1,9 @@
 # AI for Ransomware Detection
 
+```sh
+poetry run pip install tensorflow==2.15.0 scikit-learn
+```
+
 ## Configuración del Proyecto
 
 Este proyecto utiliza Poetry para la gestión de dependencias y entornos virtuales.

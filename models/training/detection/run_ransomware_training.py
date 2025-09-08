@@ -20,22 +20,29 @@ def run_script(script_name, description):
     start_time = time.time()
     
     try:
-        result = subprocess.run([sys.executable, script_name], 
-                              capture_output=True, text=True, check=True)
+        # Obtener el directorio del script actual
+        script_dir = Path(__file__).parent
+        script_path = script_dir / script_name
+        
+        # Verificar que el script existe
+        if not script_path.exists():
+            print(f"❌ Script no encontrado: {script_path}")
+            return False
+        
+        # Ejecutar el script desde su directorio SIN capturar la salida
+        result = subprocess.run([sys.executable, str(script_path)], 
+                              cwd=str(script_dir),  # Ejecutar desde el directorio del script
+                              check=True)  # Sin capture_output para ver la salida en tiempo real
         
         elapsed_time = time.time() - start_time
-        print(f"✅ {description} completado en {elapsed_time:.2f} segundos")
-        
-        if result.stdout:
-            print("\n📋 Salida del script:")
-            print(result.stdout)
+        print(f"\n✅ {description} completado en {elapsed_time:.2f} segundos")
             
         return True
         
     except subprocess.CalledProcessError as e:
         elapsed_time = time.time() - start_time
-        print(f"❌ Error en {description} después de {elapsed_time:.2f} segundos")
-        print(f"📋 Error: {e.stderr}")
+        print(f"\n❌ Error en {description} después de {elapsed_time:.2f} segundos")
+        print(f" Código de error: {e.returncode}")
         return False
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
@@ -43,22 +50,29 @@ def run_script(script_name, description):
 
 def check_dependencies():
     """Verifica que las dependencias estén instaladas"""
-    print("🔍 Verificando dependencias...")
+    print("�� Verificando dependencias...")
     
-    required_packages = [
-        'numpy', 'pandas', 'tensorflow', 'scikit-learn', 
-        'matplotlib', 'seaborn', 'scipy', 'joblib'
-    ]
+    # Mapeo de nombres de paquetes a sus módulos de importación
+    required_packages = {
+        'numpy': 'numpy',
+        'pandas': 'pandas', 
+        'tensorflow': 'tensorflow',
+        'scikit-learn': 'sklearn',  # El módulo se llama sklearn, no scikit-learn
+        'matplotlib': 'matplotlib',
+        'seaborn': 'seaborn',
+        'scipy': 'scipy',
+        'joblib': 'joblib'
+    }
     
     missing_packages = []
     
-    for package in required_packages:
+    for package_name, import_name in required_packages.items():
         try:
-            __import__(package)
-            print(f"  ✅ {package}")
+            __import__(import_name)
+            print(f"  ✅ {package_name}")
         except ImportError:
-            print(f"  ❌ {package}")
-            missing_packages.append(package)
+            print(f"  ❌ {package_name}")
+            missing_packages.append(package_name)
     
     if missing_packages:
         print(f"\n❌ Faltan dependencias: {', '.join(missing_packages)}")
@@ -72,22 +86,27 @@ def check_data_files():
     """Verifica que los archivos de datos existan"""
     print("\n🔍 Verificando archivos de datos...")
     
+    # Obtener el directorio del script actual
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent.parent.parent
+    
+    # Construir rutas relativas al archivo del script
     required_files = [
-        '../../data/traffic_dataset_full.csv'
+        project_root / "models" / "data" / "traffic_dataset_full.csv"
     ]
     
     missing_files = []
     
     for file_path in required_files:
-        if os.path.exists(file_path):
+        if file_path.exists():
             print(f"  ✅ {file_path}")
         else:
             print(f"  ❌ {file_path}")
-            missing_files.append(file_path)
+            missing_files.append(str(file_path))
     
     if missing_files:
         print(f"\n❌ Faltan archivos de datos: {', '.join(missing_files)}")
-        print("💡 Ejecuta primero el script de conversión PCAP a CSV")
+        print("�� Ejecuta primero el script de conversión PCAP a CSV")
         return False
     
     print("✅ Todos los archivos de datos están disponibles")
@@ -95,7 +114,7 @@ def check_data_files():
 
 def main():
     """Función principal del pipeline"""
-    print("🎯 PIPELINE DE ENTRENAMIENTO - DETECTOR DE RANSOMWARE")
+    print("�� PIPELINE DE ENTRENAMIENTO - DETECTOR DE RANSOMWARE")
     print("="*60)
     print("📋 Este pipeline entrenará un modelo híbrido CNN+LSTM")
     print("   con features específicas para detección de ransomware")
@@ -122,14 +141,14 @@ def main():
     for script_name, description in scripts:
         if not run_script(script_name, description):
             print(f"\n❌ Pipeline detenido en: {description}")
-            print("💡 Revisa los errores y ejecuta manualmente el script fallido")
+            print("�� Revisa los errores y ejecuta manualmente el script fallido")
             sys.exit(1)
     
     # Resumen final
     print(f"\n{'='*60}")
     print("🎉 PIPELINE COMPLETADO EXITOSAMENTE")
     print(f"{'='*60}")
-    print("📁 Archivos generados:")
+    print("�� Archivos generados:")
     print("  - convlstm_model_ransomware_final.keras (modelo entrenado)")
     print("  - evaluation_results.json (métricas detalladas)")
     print("  - evaluation_visualization.png (gráficos de evaluación)")

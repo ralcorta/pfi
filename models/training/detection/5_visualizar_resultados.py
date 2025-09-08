@@ -94,16 +94,16 @@ plt.subplot(2, 3, 5)
 metrics_data = {
     'Clase': ['Benigno', 'Ransomware'],
     'Precision': [
-        results['classification_report']['0']['precision'],
-        results['classification_report']['1']['precision']
+        results['classification_report']['Benigno']['precision'],
+        results['classification_report']['Ransomware/Malware']['precision']
     ],
     'Recall': [
-        results['classification_report']['0']['recall'],
-        results['classification_report']['1']['recall']
+        results['classification_report']['Benigno']['recall'],
+        results['classification_report']['Ransomware/Malware']['recall']
     ],
     'F1-Score': [
-        results['classification_report']['0']['f1-score'],
-        results['classification_report']['1']['f1-score']
+        results['classification_report']['Benigno']['f1-score'],
+        results['classification_report']['Ransomware/Malware']['f1-score']
     ]
 }
 

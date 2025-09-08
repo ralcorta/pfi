@@ -10,7 +10,11 @@ warnings.filterwarnings('ignore')
 # ───────────────────────────────────────────────
 CSV_TYPE = '_full'
 PAYLOAD_LEN = 1024
-MAX_ROWS_PER_PCAP = 1000
+
+# Configuración de límites (cambiar a True para activar límite por PCAP)
+USE_PCAP_LIMIT = False  # Cambiar a True si quieres limitar por archivo PCAP
+MAX_ROWS_PER_PCAP = 100000  # Solo se usa si USE_PCAP_LIMIT = True
+
 SEQUENCE_LENGTH = 20  # Aumentado de 10 a 20 para capturar mejor patrones de ransomware
 CSV_PATH = f'../../data/traffic_dataset{CSV_TYPE}.csv'
 
@@ -72,9 +76,13 @@ print("Cargando CSV...")
 df = pd.read_csv(CSV_PATH)
 print(f"Total muestras antes del filtro: {len(df)}")
 
-if 'pcap_name' in df.columns:
+if 'pcap_name' in df.columns and USE_PCAP_LIMIT:
+    print(f"Aplicando límite de {MAX_ROWS_PER_PCAP} filas por archivo PCAP...")
     df = df.groupby('pcap_name').head(MAX_ROWS_PER_PCAP).reset_index(drop=True)
     print(f"Muestras después del filtro por archivo: {len(df)}")
+elif 'pcap_name' in df.columns:
+    print("✅ Usando todas las muestras disponibles (sin límite por PCAP)")
+    print(f"Muestras totales: {len(df)}")
 else:
     print("⚠️ No se encontró la columna 'pcap_name'")
 
@@ -157,9 +165,21 @@ X = X_scaled.reshape(-1, SEQUENCE_LENGTH, 32, 32, 1)
 y_majority = [np.bincount(block).argmax() for block in y_sequences]
 y_cat = to_categorical(y_majority, num_classes=2)
 
+# Generar grupos basados en el archivo PCAP de origen
+# Esto asegura que todas las muestras de un mismo archivo vayan al mismo conjunto
+groups = []
+for i, (_, group) in enumerate(df.groupby('pcap_name')):  # Cambiar de 'pcap_file' a 'pcap_name'
+    # Asignar el mismo ID de grupo a todas las muestras de este archivo PCAP
+    group_size = len(group)
+    groups.extend([i] * group_size)
+
+# Truncar groups para que coincida con el número de secuencias
+groups = groups[:len(y_majority)]
+
 print(f"Secuencias procesadas: {X.shape[0]}")
 print(f"Longitud de secuencia: {SEQUENCE_LENGTH}")
 print(f"Features de ransomware: {X_ransomware_features.shape}")
+print(f"Grupos generados: {len(set(groups))} archivos PCAP únicos")
 
 # ───────────────────────────────────────────────
 # 5. Guardar datos procesados
@@ -167,6 +187,7 @@ print(f"Features de ransomware: {X_ransomware_features.shape}")
 np.save('X.npy', X)
 np.save('y_cat.npy', y_cat)
 np.save('X_ransomware_features.npy', X_ransomware_features)
+np.save('groups.npy', np.array(groups))  # Agregar esta línea
 
 # Guardar nombres de features para referencia
 with open('ransomware_feature_names.txt', 'w') as f:
@@ -177,5 +198,6 @@ print(f"✅ Datos guardados:")
 print(f"   - X.npy: {X.shape} (secuencias de payload)")
 print(f"   - y_cat.npy: {y_cat.shape} (etiquetas)")
 print(f"   - X_ransomware_features.npy: {X_ransomware_features.shape} (features específicas)")
+print(f"   - groups.npy: {len(groups)} grupos")
 print(f"   - ransomware_feature_names.txt: {len(feature_names)} features")
 print(f"   - Longitud de secuencia: {SEQUENCE_LENGTH} paquetes")

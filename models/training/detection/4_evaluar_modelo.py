@@ -16,24 +16,24 @@ from datetime import datetime
 print("🔍 Cargando modelo y datos de evaluación...")
 
 # Cargar modelo
-model = load_model('../convlstm_model_ransomware_final.keras')
+model = load_model('convlstm_model.keras')
 
 # Cargar datos de test
 X_test = np.load('X_test.npy')
 y_test = np.load('y_test.npy')
-X_ransomware_test = np.load('X_ransomware_test.npy')
+# X_ransomware_test = np.load('X_ransomware_test.npy')  # Comentar esta línea
 
 print(f"📊 Datos de test cargados:")
 print(f"  - X_test: {X_test.shape}")
 print(f"  - y_test: {y_test.shape}")
-print(f"  - X_ransomware_test: {X_ransomware_test.shape}")
+# print(f"  - X_ransomware_test: {X_ransomware_test.shape}")  # Comentar esta línea
 
 # ───────────────────────────────────────────────
 # 2. Evaluación básica del modelo
 # ───────────────────────────────────────────────
 print("\n🎯 Evaluando modelo...")
 loss, accuracy = model.evaluate(
-    [X_test, X_ransomware_test], y_test, verbose=0
+    X_test, y_test, verbose=0  # Solo usar X_test, no [X_test, X_ransomware_test]
 )
 
 print(f"📈 Métricas básicas:")
@@ -44,7 +44,7 @@ print(f"  - Accuracy: {accuracy:.4f}")
 # 3. Predicciones detalladas
 # ───────────────────────────────────────────────
 print("\n🔮 Generando predicciones...")
-y_pred_proba = model.predict([X_test, X_ransomware_test])
+y_pred_proba = model.predict(X_test)  # Solo usar X_test
 y_pred = np.argmax(y_pred_proba, axis=1)
 y_true = np.argmax(y_test, axis=1)
 
@@ -66,10 +66,10 @@ print(classification_report(y_true, y_pred, target_names=class_names))
 
 # Métricas específicas para ransomware (clase 1)
 ransomware_metrics = {
-    'precision': report['1']['precision'],
-    'recall': report['1']['recall'],
-    'f1_score': report['1']['f1-score'],
-    'support': report['1']['support']
+    'precision': report['Ransomware/Malware']['precision'],
+    'recall': report['Ransomware/Malware']['recall'],
+    'f1_score': report['Ransomware/Malware']['f1-score'],
+    'support': report['Ransomware/Malware']['support']
 }
 
 print(f"\n🎯 Métricas específicas para Ransomware/Malware:")
@@ -129,7 +129,8 @@ try:
         
 except FileNotFoundError:
     print("⚠️ No se encontró el archivo de nombres de features")
-    feature_names = [f"feature_{i}" for i in range(X_ransomware_test.shape[1])]
+    # feature_names = [f"feature_{i}" for i in range(X_ransomware_test.shape[1])]  # Comentar esta línea
+    feature_names = []  # Lista vacía ya que no usamos estas features
 
 # ───────────────────────────────────────────────
 # 8. Guardar resultados
@@ -139,7 +140,7 @@ print("\n💾 Guardando resultados...")
 # Crear diccionario con todas las métricas
 results = {
     'timestamp': datetime.now().isoformat(),
-    'model_name': 'convlstm_model_ransomware_final.keras',
+    'model_name': 'convlstm_model.keras',
     'basic_metrics': {
         'loss': float(loss),
         'accuracy': float(accuracy)
