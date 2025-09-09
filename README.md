@@ -137,6 +137,22 @@ Malware/
 
 ---
 
+## Ejecutar DEMOs
+
+Para ejecutar una demo sobre los malware podemos uar el demo_detector.py:
+
+```bash
+poetry run python demo_detector.py --benign models/data/backup/Benign/Gmail.pcap --malicious models/data/backup/Malware/Zeus.pcap --delay 0
+```
+
+O si queremos sniffear la red local podemos usar:
+
+```bash
+sudo poetry run python simple_sniffer.py
+```
+
+---
+
 ## Contributor
 
 - [Wei Wang](https://github.com/echowei) - ww8137@mail.ustc.edu.cn
