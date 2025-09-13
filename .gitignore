@@ -1,6 +1,8 @@
 # Entorno virtual
 venv/
 .venv/
+env/
+.env/
 
 # Poetry
 poetry.lock
