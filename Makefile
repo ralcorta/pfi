@@ -1,3 +1,6 @@
+demo:
+	poetry run python demo_detector.py --benign models/data/backup/Benign/Gmail.pcap --malicious models/data/backup/Malware/Zeus.pcap --delay 0
+
 # =============================================================================
 # AI RANSOMWARE DETECTION SYSTEM - MAKEFILE
 # =============================================================================
