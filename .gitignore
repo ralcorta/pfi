@@ -3,6 +3,7 @@ venv/
 .venv/
 env/
 .env/
+!terraform/env/
 
 # Poetry
 poetry.lock
@@ -64,3 +65,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# terraform
+terraform/env/.terraform/
+terraform/env/terraform.tfstate
+terraform/env/terraform.tfstate.backup
+terraform/env/terraform.tfvars
+terraform/env/.terraform.lock.hcl
+terraform/env/.terraform/modules/modules.json
+terraform/env/.terraform/modules/modules.json.lock
+terraform/env/.terraform/modules/modules.json.lock.hcl
+terraform/env/graph.dot
