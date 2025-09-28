@@ -32,21 +32,48 @@ X_test = np.load(DATA_DIR / "X_test.npy", mmap_mode="r")
 y_test = np.load(DATA_DIR / "y_test.npy")
 n_total = X_test.shape[0]
 
-def batched_predict(model, memmap, batch_size=256):
+# Features tabulares opcionales
+Xf_test_path = DATA_DIR / "X_ransomware_test.npy"
+HAS_FEATURES = Xf_test_path.exists()
+Xf_test = np.load(Xf_test_path, mmap_mode="r") if HAS_FEATURES else None
+if HAS_FEATURES:
+    print(f"🧩 X_ransomware_test detectado: {Xf_test.shape}", flush=True)
+else:
+    print("ℹ️ Sin features tabulares en test — evaluación solo con payloads.", flush=True)
+
+def build_input(x_payload, x_feats):
+    """Devuelve input en el formato correcto para el detector."""
+    return [x_payload, x_feats] if x_feats is not None else x_payload
+
+def batched_predict(model, X_memmap, batch_size=256, Xf_memmap=None):
+    """Predicción por lotes; soporta input único o dual (payload + features)."""
     out = []
-    for s in range(0, memmap.shape[0], batch_size):
-        e = min(s + batch_size, memmap.shape[0])
-        out.append(model.predict(memmap[s:e].astype(np.float32), verbose=0))
+    n = X_memmap.shape[0]
+    for s in range(0, n, batch_size):
+        e = min(s + batch_size, n)
+        xb = X_memmap[s:e].astype(np.float32)
+        if Xf_memmap is not None:
+            xfb = Xf_memmap[s:e].astype(np.float32)
+            out.append(model.predict([xb, xfb], verbose=0))
+        else:
+            out.append(model.predict(xb, verbose=0))
     return np.vstack(out)
 
 # -------------------------
 # Baseline
 # -------------------------
 print("=== Baseline ===", flush=True)
-proba_base = batched_predict(detector, X_test, BATCH)
+proba_base = batched_predict(detector, X_test, batch_size=BATCH, Xf_memmap=Xf_test if HAS_FEATURES else None)
 y_true = np.argmax(y_test, axis=1)
 y_pred_base = np.argmax(proba_base, axis=1)
-loss_base, acc_base = detector.evaluate(X_test[:].astype(np.float32), y_test, verbose=0)
+
+# evaluate() también con input correcto
+if HAS_FEATURES:
+    loss_base, acc_base = detector.evaluate([X_test[:].astype(np.float32),
+                                             Xf_test[:].astype(np.float32)], y_test, verbose=0)
+else:
+    loss_base, acc_base = detector.evaluate(X_test[:].astype(np.float32), y_test, verbose=0)
+
 print(f"Loss: {loss_base:.4f} | Acc: {acc_base:.4f}", flush=True)
 
 # -------------------------
@@ -55,6 +82,7 @@ print(f"Loss: {loss_base:.4f} | Acc: {acc_base:.4f}", flush=True)
 # - X_adv
 # - delta_actual = x_adv - x (post-clip)
 # - delta_intent = eps * tanh(attacker(x))  (pre-clip, el que limita por ε)
+#   (Las features NO se modifican)
 # -------------------------
 adv_path = DATA_DIR / "X_adv_eval_temp.npy"
 delta_path = DATA_DIR / "delta_eval_temp.npy"
@@ -70,7 +98,7 @@ for i, s in enumerate(range(0, n_total, BATCH), 1):
     xb = X_test[s:e].astype(np.float32)
     xb_tf = tf.convert_to_tensor(xb, dtype=tf.float32)
 
-    # salida lineal del atacante -> tanh -> escalado por ε (== entrenamiento)
+    # salida lineal del atacante -> tanh -> escalado por ε (== entrenamiento del atacante)
     d_hat = attacker(xb_tf, training=False)
     delta_intent = EPSILON * tf.tanh(d_hat)             # en [-ε, +ε]
     x_adv = tf.clip_by_value(xb_tf + delta_intent, 0.0, 1.0)
@@ -96,9 +124,15 @@ delta_intent_all = np.load(DATA_DIR / "delta_intent_eval.npy", mmap_mode="r")
 # Evaluación del detector en X_adv
 # -------------------------
 print("\n=== Detector en X_adv ===", flush=True)
-proba_adv = batched_predict(detector, X_adv, BATCH)
+proba_adv = batched_predict(detector, X_adv, batch_size=BATCH, Xf_memmap=Xf_test if HAS_FEATURES else None)
 y_pred_adv = np.argmax(proba_adv, axis=1)
-loss_adv, acc_adv = detector.evaluate(X_adv[:].astype(np.float32), y_test, verbose=0)
+
+if HAS_FEATURES:
+    loss_adv, acc_adv = detector.evaluate([X_adv[:].astype(np.float32),
+                                           Xf_test[:].astype(np.float32)], y_test, verbose=0)
+else:
+    loss_adv, acc_adv = detector.evaluate(X_adv[:].astype(np.float32), y_test, verbose=0)
+
 print(f"Loss: {loss_adv:.4f} | Acc: {acc_adv:.4f}", flush=True)
 
 # -------------------------

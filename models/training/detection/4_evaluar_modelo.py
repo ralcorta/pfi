@@ -9,87 +9,99 @@ from sklearn.metrics import (
 import joblib
 import json
 from datetime import datetime
+from pathlib import Path
 
 # ───────────────────────────────────────────────
-# 1. Cargar modelo y datos
+# 1) Cargar modelo y datos
 # ───────────────────────────────────────────────
 print("🔍 Cargando modelo y datos de evaluación...")
 
-# Cargar modelo
-model = load_model('convlstm_model.keras')
+ROOT = Path(__file__).parent
+model = load_model(ROOT / 'convlstm_model.keras')
 
-# Cargar datos de test
-X_test = np.load('X_test.npy')
-y_test = np.load('y_test.npy')
-# X_ransomware_test = np.load('X_ransomware_test.npy')  # Comentar esta línea
+X_test = np.load(ROOT / 'X_test.npy')
+y_test = np.load(ROOT / 'y_test.npy')
 
-print(f"📊 Datos de test cargados:")
+# Autodetección de features tabulares
+feat_path = ROOT / 'X_ransomware_test.npy'
+USE_FEATURES = feat_path.exists()
+X_ransomware_test = np.load(feat_path) if USE_FEATURES else None
+
+print("📊 Datos de test cargados:")
 print(f"  - X_test: {X_test.shape}")
 print(f"  - y_test: {y_test.shape}")
-# print(f"  - X_ransomware_test: {X_ransomware_test.shape}")  # Comentar esta línea
+print(f"  - X_ransomware_test: {X_ransomware_test.shape if USE_FEATURES else '— (no encontrado)'}")
+
+# Helper para armar input según corresponda
+def build_input(X, Xfeat, use_features):
+    return [X, Xfeat] if use_features else X
 
 # ───────────────────────────────────────────────
-# 2. Evaluación básica del modelo
+# 2) Evaluación básica del modelo
 # ───────────────────────────────────────────────
 print("\n🎯 Evaluando modelo...")
 loss, accuracy = model.evaluate(
-    X_test, y_test, verbose=0  # Solo usar X_test, no [X_test, X_ransomware_test]
+    build_input(X_test, X_ransomware_test, USE_FEATURES),
+    y_test,
+    verbose=0
 )
-
-print(f"📈 Métricas básicas:")
+print("📈 Métricas básicas:")
 print(f"  - Loss: {loss:.4f}")
 print(f"  - Accuracy: {accuracy:.4f}")
 
 # ───────────────────────────────────────────────
-# 3. Predicciones detalladas
+# 3) Predicciones detalladas
 # ───────────────────────────────────────────────
 print("\n🔮 Generando predicciones...")
-y_pred_proba = model.predict(X_test)  # Solo usar X_test
+y_pred_proba = model.predict(build_input(X_test, X_ransomware_test, USE_FEATURES), verbose=0)
 y_pred = np.argmax(y_pred_proba, axis=1)
 y_true = np.argmax(y_test, axis=1)
 
 # ───────────────────────────────────────────────
-# 4. Métricas específicas para ransomware
+# 4) Métricas específicas para ransomware
 # ───────────────────────────────────────────────
 print("\n🎯 Métricas específicas para ransomware:")
 print("=" * 50)
-
-# Reporte de clasificación detallado
 class_names = ["Benigno", "Ransomware/Malware"]
+
 report = classification_report(
-    y_true, y_pred, 
+    y_true, y_pred,
     target_names=class_names,
-    output_dict=True
+    output_dict=True,
+    zero_division=0
 )
+print(classification_report(y_true, y_pred, target_names=class_names, zero_division=0))
 
-print(classification_report(y_true, y_pred, target_names=class_names))
-
-# Métricas específicas para ransomware (clase 1)
 ransomware_metrics = {
     'precision': report['Ransomware/Malware']['precision'],
     'recall': report['Ransomware/Malware']['recall'],
     'f1_score': report['Ransomware/Malware']['f1-score'],
-    'support': report['Ransomware/Malware']['support']
+    'support': int(report['Ransomware/Malware']['support'])
 }
-
-print(f"\n🎯 Métricas específicas para Ransomware/Malware:")
+print("\n🎯 Métricas específicas para Ransomware/Malware:")
 print(f"  - Precision: {ransomware_metrics['precision']:.4f}")
 print(f"  - Recall: {ransomware_metrics['recall']:.4f}")
 print(f"  - F1-Score: {ransomware_metrics['f1_score']:.4f}")
 print(f"  - Support: {ransomware_metrics['support']}")
 
 # ───────────────────────────────────────────────
-# 5. Matriz de confusión
+# 5) Matriz de confusión + métricas adicionales
 # ───────────────────────────────────────────────
 print("\n📊 Generando matriz de confusión...")
-cm = confusion_matrix(y_true, y_pred)
+cm = confusion_matrix(y_true, y_pred, labels=[0,1])
+if cm.shape == (2,2):
+    tn, fp, fn, tp = cm.ravel()
+else:
+    # Resguardo por si falta alguna clase en test
+    tn = int(cm[0,0]) if cm.shape[0] > 0 and cm.shape[1] > 0 else 0
+    fp = int(cm[0,1]) if cm.shape[0] > 0 and cm.shape[1] > 1 else 0
+    fn = int(cm[1,0]) if cm.shape[0] > 1 and cm.shape[1] > 0 else 0
+    tp = int(cm[1,1]) if cm.shape[0] > 1 and cm.shape[1] > 1 else 0
 
-# Calcular métricas adicionales
-tn, fp, fn, tp = cm.ravel()
-specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
-sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
-print(f"\n📈 Métricas adicionales:")
+print("\n📈 Métricas adicionales:")
 print(f"  - True Positives (TP): {tp}")
 print(f"  - True Negatives (TN): {tn}")
 print(f"  - False Positives (FP): {fp}")
@@ -98,53 +110,46 @@ print(f"  - Sensitivity (Recall): {sensitivity:.4f}")
 print(f"  - Specificity: {specificity:.4f}")
 
 # ───────────────────────────────────────────────
-# 6. Curvas ROC y Precision-Recall
+# 6) Curvas ROC y Precision-Recall
 # ───────────────────────────────────────────────
 print("\n📈 Generando curvas de evaluación...")
-
-# ROC Curve
 fpr, tpr, _ = roc_curve(y_true, y_pred_proba[:, 1])
 roc_auc = auc(fpr, tpr)
 
-# Precision-Recall Curve
 precision_curve, recall_curve, _ = precision_recall_curve(y_true, y_pred_proba[:, 1])
 avg_precision = average_precision_score(y_true, y_pred_proba[:, 1])
 
 print(f"  - ROC AUC: {roc_auc:.4f}")
 print(f"  - Average Precision: {avg_precision:.4f}")
 
-# ───────────────────────────────────────────────
-# 7. Análisis de features de ransomware
-# ───────────────────────────────────────────────
-print("\n🔍 Analizando importancia de features de ransomware...")
+# (Opcional) si querés plots, descomentá:
+# plt.figure(); plt.plot(fpr, tpr); plt.xlabel("FPR"); plt.ylabel("TPR"); plt.title(f"ROC AUC={roc_auc:.3f}"); plt.show()
+# plt.figure(); plt.plot(recall_curve, precision_curve); plt.xlabel("Recall"); plt.ylabel("Precision"); plt.title(f"PR AUC={avg_precision:.3f}"); plt.show()
 
-# Cargar nombres de features
+# ───────────────────────────────────────────────
+# 7) Nombres de features (si existen)
+# ───────────────────────────────────────────────
+print("\n🔍 Analizando nombres de features de ransomware...")
+feature_names = []
 try:
-    with open('ransomware_feature_names.txt', 'r') as f:
+    with open(ROOT / 'ransomware_feature_names.txt', 'r') as f:
         feature_names = [line.strip() for line in f.readlines()]
-    
-    print(f"📋 Features analizadas ({len(feature_names)}):")
-    for i, name in enumerate(feature_names):
-        print(f"  {i+1:2d}. {name}")
-        
+        print(f"📋 Features analizadas ({len(feature_names)}):")
+        for i, name in enumerate(feature_names):
+            print(f"  {i+1:2d}. {name}")
 except FileNotFoundError:
-    print("⚠️ No se encontró el archivo de nombres de features")
-    # feature_names = [f"feature_{i}" for i in range(X_ransomware_test.shape[1])]  # Comentar esta línea
-    feature_names = []  # Lista vacía ya que no usamos estas features
+    print("⚠️ No se encontró ransomware_feature_names.txt (continuo sin nombres)")
 
 # ───────────────────────────────────────────────
-# 8. Guardar resultados
+# 8) Guardar resultados
 # ───────────────────────────────────────────────
 print("\n💾 Guardando resultados...")
 
-# Crear diccionario con todas las métricas
 results = {
     'timestamp': datetime.now().isoformat(),
+    'used_features': USE_FEATURES,
     'model_name': 'convlstm_model.keras',
-    'basic_metrics': {
-        'loss': float(loss),
-        'accuracy': float(accuracy)
-    },
+    'basic_metrics': {'loss': float(loss), 'accuracy': float(accuracy)},
     'ransomware_specific_metrics': ransomware_metrics,
     'confusion_matrix': {
         'true_positives': int(tp),
@@ -160,21 +165,19 @@ results = {
     'feature_names': feature_names
 }
 
-# Guardar resultados en JSON
-with open('../evaluation_results.json', 'w') as f:
+with open(ROOT.parent / 'evaluation_results.json', 'w') as f:
     json.dump(results, f, indent=2)
 
-# Guardar predicciones
-np.save('../y_pred_proba.npy', y_pred_proba)
-np.save('../y_pred.npy', y_pred)
+np.save(ROOT.parent / 'y_pred_proba.npy', y_pred_proba)
+np.save(ROOT.parent / 'y_pred.npy', y_pred)
 
 print("✅ Resultados guardados:")
-print(f"  - evaluation_results.json: Métricas completas")
-print(f"  - y_pred_proba.npy: Probabilidades de predicción")
-print(f"  - y_pred.npy: Predicciones finales")
+print("  - evaluation_results.json")
+print("  - y_pred_proba.npy")
+print("  - y_pred.npy")
 
 # ───────────────────────────────────────────────
-# 9. Resumen final
+# 9) Resumen final
 # ───────────────────────────────────────────────
 print("\n" + "="*60)
 print("🎯 RESUMEN DE EVALUACIÓN - DETECTOR DE RANSOMWARE")

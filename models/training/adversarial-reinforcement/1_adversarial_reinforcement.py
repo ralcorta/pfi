@@ -18,16 +18,21 @@ DET_DIR = ROOT / "models" / "training" / "detection"
 
 DETECTOR_IN_PATH  = DET_DIR / "convlstm_model.keras"                 # detector base
 DETECTOR_OUT_PATH = DET_DIR / "convlstm_model_advtrained.keras"      # detector robustecido
-
-ATTACKER_PATH = ROOT / "attacker_model.keras"                        # atacante entrenado
+ATTACKER_PATH     = ROOT / "attacker_model.keras"                    # atacante entrenado
 
 X_TRAIN = DET_DIR / "X_train.npy"
 Y_TRAIN = DET_DIR / "y_train.npy"
 X_TEST  = DET_DIR / "X_test.npy"
 Y_TEST  = DET_DIR / "y_test.npy"
 
+# features tabulares (opcionales)
+XF_TRAIN = DET_DIR / "X_ransomware_train.npy"
+XF_TEST  = DET_DIR / "X_ransomware_test.npy"
+
 for p in [DETECTOR_IN_PATH, ATTACKER_PATH, X_TRAIN, Y_TRAIN, X_TEST, Y_TEST]:
     assert p.exists(), f"Falta: {p}"
+
+USE_FEATURES = XF_TRAIN.exists() and XF_TEST.exists()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Config
@@ -42,7 +47,6 @@ ADV_RATIO = 0.7           # % de malware del batch que pasará a adversarial
 EPSILON = 0.05            # igual al usado al evaluar/entrenar el atacante
 TEMP = 3.0                # mismo escalado que en el entrenamiento del atacante
 LABEL_SMOOTH = 0.05       # leve smoothing para estabilidad
-USE_MIXUP = False         # dejalo en False para no confundir señales adversariales
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Carga de modelos y datos (mmap para ahorrar RAM)
@@ -58,6 +62,16 @@ Xtr = np.load(X_TRAIN, mmap_mode='r')       # (N, T, 32, 32, 1)
 Ytr = np.load(Y_TRAIN, mmap_mode='r')       # one-hot (N, 2)
 Xte = np.load(X_TEST,  mmap_mode='r')
 Yte = np.load(Y_TEST,  mmap_mode='r')
+
+if USE_FEATURES:
+    XFtr = np.load(XF_TRAIN, mmap_mode='r')   # (N, F)
+    XFte = np.load(XF_TEST,  mmap_mode='r')   # (N, F)
+    F = XFtr.shape[1]
+    print(f"🧩 Features tabulares detectadas: F={F}")
+else:
+    XFtr = XFte = None
+    F = 0
+    print("ℹ️ Sin features tabulares — entrenamiento solo con payloads.")
 
 Ntr = Xtr.shape[0]
 T, H, W, C = Xtr.shape[1:]
@@ -77,20 +91,25 @@ ce = tf.keras.losses.CategoricalCrossentropy(label_smoothing=LABEL_SMOOTH)
 @tf.function(reduce_retracing=True)
 def make_x_adv(x_batch):
     """
-    Genera ejemplos adversariales *del atacante*:
+    Genera ejemplos adversariales *del atacante* sobre el PAYLOAD:
     delta = eps * tanh(delta_hat/TEMP), x_adv = clip(x + delta, [0,1])
+    (Las features tabulares NO se modifican)
     """
     d_hat = attacker(x_batch, training=False)
     delta = EPSILON * tf.tanh(d_hat / TEMP)
     x_adv = tf.clip_by_value(x_batch + delta, 0.0, 1.0)
     return x_adv
 
+def build_input(X_payload, X_feats, use_features: bool):
+    """Devuelve el input en el formato que espera el detector."""
+    return [X_payload, X_feats] if use_features else X_payload
+
 def batch_sampler(batch_size=BATCH, adv_ratio=ADV_RATIO):
     """
     Generador que arma batches mixtos:
       - Todo BENIGNO queda limpio (el atacante fue targeteado malware->benigno).
-      - Una fracción de MALWARE se convierte a adversarial.
-    Mantiene el mismo tamaño de batch.
+      - Una fracción de MALWARE se convierte a adversarial (payload perturbado).
+      - Las features tabulares siempre se pasan "tal cual".
     """
     # fracciones aproximadas por batch según dataset real
     p_mal = len(idx_mal) / (len(idx_mal) + len(idx_ben) + 1e-8)
@@ -110,22 +129,33 @@ def batch_sampler(batch_size=BATCH, adv_ratio=ADV_RATIO):
         else:
             mal_adv_ids, mal_clean_ids = np.array([], dtype=int), np.array([], dtype=int)
 
+        # Limpios: todos los benignos + malware no adversarial
         ids_clean = np.concatenate([ben_ids, mal_clean_ids])
         X_clean = Xtr[ids_clean].astype(np.float32)
         y_clean = Ytr[ids_clean].astype(np.float32)
+        XF_clean = XFtr[ids_clean].astype(np.float32) if USE_FEATURES else None
 
+        # Adversariales: solo malware seleccionado
         if len(mal_adv_ids) > 0:
             X_mal = Xtr[mal_adv_ids].astype(np.float32)
             y_mal = Ytr[mal_adv_ids].astype(np.float32)   # etiqueta sigue siendo malware
             X_adv = make_x_adv(tf.convert_to_tensor(X_mal)).numpy()
-            Xb = np.concatenate([X_clean, X_adv], axis=0)
-            yb = np.concatenate([y_clean, y_mal], axis=0)
+            XF_mal = XFtr[mal_adv_ids].astype(np.float32) if USE_FEATURES else None
+
+            Xb  = np.concatenate([X_clean, X_adv], axis=0)
+            yb  = np.concatenate([y_clean, y_mal], axis=0)
+            XFb = (np.concatenate([XF_clean, XF_mal], axis=0) if USE_FEATURES else None)
         else:
             Xb, yb = X_clean, y_clean
+            XFb = XF_clean if USE_FEATURES else None
 
         # barajar dentro del batch
         perm = np.random.permutation(len(Xb))
-        yield Xb[perm], yb[perm]
+        Xb  = Xb[perm]
+        yb  = yb[perm]
+        XFb = (XFb[perm] if USE_FEATURES else None)
+
+        yield (build_input(Xb, XFb, USE_FEATURES), yb)
 
 def steps_per_epoch_est(n_samples, batch=BATCH):
     return int(np.ceil(n_samples / batch))
@@ -143,17 +173,34 @@ ckpt = ModelCheckpoint(DETECTOR_OUT_PATH, monitor='val_loss', save_best_only=Tru
 # ──────────────────────────────────────────────────────────────────────────────
 # Entrenamiento
 # ──────────────────────────────────────────────────────────────────────────────
-train_gen = batch_sampler()
-val_data = (Xte[:].astype(np.float32), Yte[:].astype(np.float32))
+print("\n🚀 Fine-tuning adversarial… (inputs: {})".format(
+    "payload + features" if USE_FEATURES else "solo payload"
+))
 
-print("\n🚀 Fine-tuning adversarial…")
+# Output signature para tf.data según #inputs
+if USE_FEATURES:
+    input_signature = (
+        (tf.TensorSpec(shape=(None, T, H, W, C), dtype=tf.float32),
+         tf.TensorSpec(shape=(None, F),          dtype=tf.float32)),
+        tf.TensorSpec(shape=(None, 2),           dtype=tf.float32)
+    )
+else:
+    input_signature = (
+        tf.TensorSpec(shape=(None, T, H, W, C), dtype=tf.float32),
+        tf.TensorSpec(shape=(None, 2),          dtype=tf.float32)
+    )
+
+train_gen = batch_sampler()
+
+val_inputs = build_input(Xte[:].astype(np.float32),
+                         XFte[:].astype(np.float32) if USE_FEATURES else None,
+                         USE_FEATURES)
+val_data = (val_inputs, Yte[:].astype(np.float32))
+
 hist = detector.fit(
     x = tf.data.Dataset.from_generator(
             lambda: train_gen,
-            output_signature=(
-                tf.TensorSpec(shape=(None, T, H, W, C), dtype=tf.float32),
-                tf.TensorSpec(shape=(None, 2),           dtype=tf.float32)
-            )
+            output_signature=input_signature
         ).prefetch(tf.data.AUTOTUNE),
     steps_per_epoch = steps_per_epoch_est(Ntr, BATCH),
     epochs = EPOCHS,
@@ -170,26 +217,30 @@ print(f"\n✅ Detector robustecido guardado en: {DETECTOR_OUT_PATH}")
 # Evaluación: limpio vs adversarial (test)
 # ──────────────────────────────────────────────────────────────────────────────
 print("\n🔎 Evaluando robustez…")
-clean_loss, clean_acc = detector.evaluate(Xte[:].astype(np.float32), Yte, verbose=0)
+clean_loss, clean_acc = detector.evaluate(val_inputs, Yte, verbose=0)
 print(f"Clean  -> loss={clean_loss:.4f} | acc={clean_acc:.4f}")
 
 # Generamos adversarial para TODO test malware y medimos recall malware adversarial
 yte_lab = np.argmax(Yte, axis=1)
 MAL_TEST_IDX = np.where(yte_lab == 1)[0]
 if len(MAL_TEST_IDX) > 0:
-    # creamos X_adv solo para malware de test (sin ocupar RAM total)
     B = 256
     preds_clean_mal = []
     preds_adv_mal = []
+
     for s in range(0, len(MAL_TEST_IDX), B):
         e = min(s+B, len(MAL_TEST_IDX))
         ids = MAL_TEST_IDX[s:e]
-        xb = Xte[ids].astype(np.float32)
-        yb = Yte[ids].astype(np.float32)
 
-        y_clean = detector.predict(xb, verbose=0)
+        xb  = Xte[ids].astype(np.float32)
+        xfb = XFte[ids].astype(np.float32) if USE_FEATURES else None
+
+        # clean
+        y_clean = detector.predict(build_input(xb, xfb, USE_FEATURES), verbose=0)
+
+        # adversarial (payload perturbado, features iguales)
         x_adv = make_x_adv(tf.convert_to_tensor(xb)).numpy()
-        y_adv  = detector.predict(x_adv, verbose=0)
+        y_adv = detector.predict(build_input(x_adv, xfb, USE_FEATURES), verbose=0)
 
         preds_clean_mal.append(np.argmax(y_clean, axis=1))
         preds_adv_mal.append(np.argmax(y_adv,  axis=1))

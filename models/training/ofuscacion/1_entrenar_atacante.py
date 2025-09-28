@@ -110,9 +110,20 @@ X_train_path = DATA_DIR / "X_train.npy"
 y_train_path = DATA_DIR / "y_train.npy"
 X_test_path  = DATA_DIR / "X_test.npy"
 y_test_path  = DATA_DIR / "y_test.npy"
+
+# optional tabular features (ransomware features)
+Xf_train_path = DATA_DIR / "X_ransomware_train.npy"
+Xf_test_path  = DATA_DIR / "X_ransomware_test.npy"
+HAS_FEATURES = Xf_train_path.exists() and Xf_test_path.exists()
+
 for p in (X_train_path, y_train_path, X_test_path, y_test_path):
     if not p.exists():
         raise FileNotFoundError(f"Falta archivo: {p}")
+
+if HAS_FEATURES:
+    print("Features tabulares detectadas para entrenamiento (X_ransomware_*.npy).", flush=True)
+else:
+    print("No se detectaron features tabulares; trabajando solo con payloads.", flush=True)
 
 X_train_mm = np.load(X_train_path, mmap_mode="r")
 y_train_mm = np.load(y_train_path, mmap_mode="r")
@@ -141,6 +152,7 @@ print("Atacante listo. Parámetros:", attacker.count_params(), flush=True)
 
 # -------------------------
 # Datasets: SOLO MALWARE
+#    - cuando hay features, devolvemos ((payload, feats), y)
 # -------------------------
 def make_dataset_malware_only(X_path, y_path, batch, shuffle=True, debug_subset=None):
     X = np.load(X_path, mmap_mode="r")
@@ -150,10 +162,20 @@ def make_dataset_malware_only(X_path, y_path, batch, shuffle=True, debug_subset=
     if debug_subset: idx = idx[:int(debug_subset)]
     n = len(idx)
     if shuffle: np.random.shuffle(idx)
+
     X_sel = X[idx]
     Y_sel = Y[idx]
-    ds = tf.data.Dataset.from_tensor_slices((X_sel, Y_sel))
-    if shuffle: ds = ds.shuffle(min(n, 10000))
+
+    if HAS_FEATURES:
+        Xf = np.load(Xf_train_path if "train" in str(X_path) else Xf_test_path, mmap_mode="r")
+        Xf_sel = Xf[idx]
+        ds = tf.data.Dataset.from_tensor_slices(((X_sel, Xf_sel), Y_sel))
+    else:
+        ds = tf.data.Dataset.from_tensor_slices((X_sel, Y_sel))
+
+    if shuffle:
+        # buffer size min(n, 10000) to avoid huge memory shuffle buffer
+        ds = ds.shuffle(min(n, 10000))
     ds = ds.batch(batch).prefetch(tf.data.AUTOTUNE)
     return ds, n
 
@@ -174,30 +196,63 @@ lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
 )
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
-# Mini probe para ASR en entrenamiento
-probe_xb, probe_yb = next(iter(val_ds.unbatch().batch(min(512, max(BATCH_SIZE, 256)))))
-print(f"Probe de validación: {probe_xb.shape[0]} muestras", flush=True)
+# Mini probe para ASR en entrenamiento: desambigüo estructura
+def make_probe_batch(val_ds, max_probe=512):
+    # Construye un batch pequeño para probe desde val_ds.unbatch()
+    unbat = val_ds.unbatch().batch(min(max_probe, max(BATCH_SIZE, 256)))
+    sample = next(iter(unbat))
+    if HAS_FEATURES:
+        ((p_x, p_xf), p_y) = sample
+        return (p_x, p_xf), p_y
+    else:
+        (p_x, p_y) = sample
+        return p_x, p_y
+
+probe_input, probe_yb = make_probe_batch(val_ds)
+if HAS_FEATURES:
+    probe_xb, probe_xf = probe_input
+    print(f"Probe de validación: {probe_xb.shape[0]} muestras (con features)", flush=True)
+else:
+    probe_xb = probe_input
+    probe_xf = None
+    print(f"Probe de validación: {probe_xb.shape[0]} muestras (sin features)", flush=True)
 
 # -------------------------
 # Warm-start PGD (proyección en L∞)
+#   - soporte para detector con/sin features: si hay features, debe pasarse junto al adv
 # -------------------------
 @tf.function(reduce_retracing=True)
-def pgd_warm_start(x, y_tgt, eps, steps):
+def pgd_warm_start(x_in, y_tgt, eps, steps):
+    """
+    x_in puede ser:
+      - tensor payload (B,T,H,W,C)  OR
+      - tuple (payload, feats)
+    """
+    if isinstance(x_in, (tuple, list)):
+        x_payload, x_feats = x_in
+    else:
+        x_payload, x_feats = x_in, None
+
     if steps <= 0:
-        return x
+        return x_payload
+
     alpha = eps / tf.cast(steps, tf.float32)
     # arranque aleatorio en la bola L∞
-    delta = tf.random.uniform(tf.shape(x), minval=-eps, maxval=eps, dtype=tf.float32)
-    adv = tf.clip_by_value(x + delta, 0.0, 1.0)
+    delta = tf.random.uniform(tf.shape(x_payload), minval=-eps, maxval=eps, dtype=tf.float32)
+    adv = tf.clip_by_value(x_payload + delta, 0.0, 1.0)
     for _ in tf.range(steps):
         with tf.GradientTape() as tape_pgd:
             tape_pgd.watch(adv)
-            pred = detector(adv, training=False)
+            # si hay features, pasarlas al detector también
+            if x_feats is not None:
+                pred = detector([adv, x_feats], training=False)
+            else:
+                pred = detector(adv, training=False)
             loss = ce(y_tgt, pred)  # empuja hacia Benigno
         grad = tape_pgd.gradient(loss, adv)
         adv = adv + alpha * tf.sign(grad)
         # proyectar a la bola L∞ y al dominio [0,1]
-        adv = tf.clip_by_value(tf.minimum(x + eps, tf.maximum(x - eps, adv)), 0.0, 1.0)
+        adv = tf.clip_by_value(tf.minimum(x_payload + eps, tf.maximum(x_payload - eps, adv)), 0.0, 1.0)
     return adv
 
 # -------------------------
@@ -213,21 +268,27 @@ def cosine_alignment_loss(delta, g):
 
 # -------------------------
 # Paso de entrenamiento
+#   - train_step recibe siempre el payload (x_payload), trabaja attacker(x_payload)
+#   - al llamar al detector usamos [x_adv, feats] si existen features
 # -------------------------
-def train_step_impl(x, y_true, eps):
+def train_step_impl(x_payload, x_feats, y_true, eps):
+    # x_payload: tensor (B,T,H,W,C)
+    # x_feats: None o tensor (B,F)
     y_tgt = tf.one_hot(tf.fill((tf.shape(y_true)[0],), TARGET_CLASS), depth=y_true.shape[1])
 
-    # Warm seed ya aplicado afuera si corresponde
     with tf.GradientTape() as tape:
-        delta_hat = attacker(x, training=True)
+        delta_hat = attacker(x_payload, training=True)
 
         # Anti-saturación: tanh en zona lineal y penalización
         delta_raw = tf.tanh(delta_hat / TEMP)     # ~[-1,1] con gradiente vivo
         delta = eps * delta_raw                   # [-ε, +ε]
-        x_adv = tf.clip_by_value(x + delta, 0.0, 1.0)
+        x_adv = tf.clip_by_value(x_payload + delta, 0.0, 1.0)
 
-        # Clasificación del detector en x_adv
-        y_pred = detector(x_adv, training=False)
+        # Clasificación del detector en x_adv (con o sin features)
+        if x_feats is not None:
+            y_pred = detector([x_adv, x_feats], training=False)
+        else:
+            y_pred = detector(x_adv, training=False)
 
         # Pérdida principal: CE hacia Benigno
         loss_target = ce(y_tgt, y_pred)
@@ -248,7 +309,10 @@ def train_step_impl(x, y_true, eps):
         if USE_ALIGN and ALIGN_LAMBDA > 0.0:
             with tf.GradientTape() as tape_align:
                 tape_align.watch(x_adv)
-                pred_adv = detector(x_adv, training=False)
+                if x_feats is not None:
+                    pred_adv = detector([x_adv, x_feats], training=False)
+                else:
+                    pred_adv = detector(x_adv, training=False)
                 loss_to_benign_adv = ce(y_tgt, pred_adv)
             g_adv = tf.stop_gradient(tape_align.gradient(loss_to_benign_adv, x_adv))
             loss_align = cosine_alignment_loss(delta, g_adv)
@@ -273,14 +337,17 @@ else:
     train_step = train_step_impl
 
 # --- DEBUG: grad-norms por variable (solo lectura, fuera de tf.function) ---
-def debug_grad_norms(x, y_true, eps, max_vars=GRAD_DEBUG_LAYERS):
+def debug_grad_norms(x_payload, x_feats, y_true, eps, max_vars=GRAD_DEBUG_LAYERS):
     y_tgt = tf.one_hot(tf.fill((tf.shape(y_true)[0],), TARGET_CLASS), depth=y_true.shape[1])
     with tf.GradientTape() as tape:
-        delta_hat = attacker(x, training=True)
+        delta_hat = attacker(x_payload, training=True)
         delta_raw = tf.tanh(delta_hat / TEMP)
         delta = eps * delta_raw
-        x_adv = tf.clip_by_value(x + delta, 0.0, 1.0)
-        y_pred = detector(x_adv, training=False)
+        x_adv = tf.clip_by_value(x_payload + delta, 0.0, 1.0)
+        if x_feats is not None:
+            y_pred = detector([x_adv, x_feats], training=False)
+        else:
+            y_pred = detector(x_adv, training=False)
         loss = ce(y_tgt, y_pred) + L1_LAMBDA*tf.reduce_mean(tf.abs(delta)) + TV_LAMBDA*tv_loss(delta)
     grads = tape.gradient(loss, attacker.trainable_variables)
     print("   ↳ Grad norms por variable (primeros):", flush=True)
@@ -300,13 +367,23 @@ def debug_grad_norms(x, y_true, eps, max_vars=GRAD_DEBUG_LAYERS):
 # -------------------------
 def eval_val_fixed_eps(attacker_model, detector_model, val_dataset, eps_fixed):
     vals, probs, fr_sats = [], [], []
-    for xb, yb in val_dataset:
+    for batch in val_dataset:
+        # batch puede ser ((x,xf), y) o (x, y)
+        if HAS_FEATURES:
+            (xb, xfb), yb = batch
+        else:
+            xb, yb = batch
+            xfb = None
+
         d_hat = attacker_model(xb, training=False)
         d_raw = tf.tanh(d_hat / TEMP)
         delta = eps_fixed * d_raw
         x_adv = tf.clip_by_value(xb + delta, 0.0, 1.0)
         y_tgt = tf.one_hot(tf.fill((tf.shape(yb)[0],), TARGET_CLASS), depth=yb.shape[1])
-        y_pred = detector_model(x_adv, training=False)
+        if xfb is not None:
+            y_pred = detector_model([x_adv, xfb], training=False)
+        else:
+            y_pred = detector_model(x_adv, training=False)
         v = ce(y_tgt, y_pred)
         vals.append(v.numpy())
         probs.append(tf.reduce_mean(tf.reduce_sum(y_tgt * y_pred, axis=1)).numpy())
@@ -332,18 +409,29 @@ for epoch in range(1, EPOCHS+1):
     tl, t_ce, l1_l, tv_l, sat_l, gn_l, al_l, bprob_l, fsat_l = [], [], [], [], [], [], [], [], []
     batch_idx = 0
 
-    for xb, yb in train_ds:
+    for batch in train_ds:
         b0 = time.time()
+
+        # batch puede ser ((x_payload, x_feats), y) o (x_payload, y)
+        if HAS_FEATURES:
+            (xb_payload, xb_feats), yb = batch
+        else:
+            xb_payload, yb = batch
+            xb_feats = None
 
         # Warm-start PGD (sólo primeras épocas)
         if epoch <= WARM_START_EPOCHS and WARM_PGD_STEPS > 0:
             y_tgt0 = tf.one_hot(tf.fill((tf.shape(yb)[0],), TARGET_CLASS), depth=yb.shape[1])
-            x_seed = pgd_warm_start(xb, y_tgt0, tf.constant(eps, tf.float32), tf.constant(WARM_PGD_STEPS))
+            # pgd_warm_start acepta (payload) o ((payload, feats))
+            if xb_feats is not None:
+                x_seed = pgd_warm_start((xb_payload, xb_feats), y_tgt0, tf.constant(eps, tf.float32), tf.constant(WARM_PGD_STEPS))
+            else:
+                x_seed = pgd_warm_start(xb_payload, y_tgt0, tf.constant(eps, tf.float32), tf.constant(WARM_PGD_STEPS))
         else:
-            x_seed = xb
+            x_seed = xb_payload
 
         (loss, loss_ce_tgt, l1, ltv, lsat, gnorm, lalign,
-         benign_prob, frac_sat) = train_step(x_seed, yb, tf.constant(eps))
+         benign_prob, frac_sat) = train_step(x_seed, xb_feats, yb, tf.constant(eps))
 
         if has_bad(loss) or has_bad(gnorm):
             print("❌ NaN/Inf detectado en loss o grad_norm. Abortando.", flush=True)
@@ -363,13 +451,16 @@ for epoch in range(1, EPOCHS+1):
         eta_min = (steps_per_epoch - batch_idx) * (ema_bt or bt) / 60.0
 
         if batch_idx % PRINT_EVERY == 0 or batch_idx == steps_per_epoch:
-            with tf.device('/CPU:0'):
-                d_hat = attacker(probe_xb, training=False)
-                d_raw = tf.tanh(d_hat / TEMP)
-                xa = tf.clip_by_value(probe_xb + eps * d_raw, 0.0, 1.0)
+            # probe: necesitamos construir x_adv sobre probe_xb (y usar probe_xf si existe)
+            d_hat = attacker(probe_xb, training=False)
+            d_raw = tf.tanh(d_hat / TEMP)
+            xa = tf.clip_by_value(probe_xb + eps * d_raw, 0.0, 1.0)
+            if probe_xf is not None:
+                yp = detector([xa, probe_xf], training=False)
+            else:
                 yp = detector(xa, training=False)
-                y_pred = tf.argmax(yp, axis=1)
-                asr_probe = float(tf.reduce_mean(tf.cast(y_pred == TARGET_CLASS, tf.float32)).numpy())
+            y_pred = tf.argmax(yp, axis=1)
+            asr_probe = float(tf.reduce_mean(tf.cast(y_pred == TARGET_CLASS, tf.float32)).numpy())
 
             print(f"  🔄 Epoch {epoch}, batch {batch_idx}/{steps_per_epoch}: "
                   f"loss={np.mean(tl):.4f} | tgtCE={np.mean(t_ce):.4f} | "
@@ -381,17 +472,28 @@ for epoch in range(1, EPOCHS+1):
                   flush=True)
 
         if GRAD_DEBUG and (batch_idx % GRAD_DEBUG_EVERY == 0):
-            debug_grad_norms(xb[:min(8, xb.shape[0])], yb[:min(8, yb.shape[0])], eps)
+            debug_grad_norms(xb_payload[:min(8, xb_payload.shape[0])], xb_feats[:min(8, xb_payload.shape[0])] if xb_feats is not None else None,
+                             yb[:min(8, yb.shape[0])], eps)
 
     # Validación (malware-only) al ε actual
     vt, bps, fsats = [], [], []
-    for xb, yb in val_ds:
-        d_hat = attacker(xb, training=False)
+    for batch in val_ds:
+        if HAS_FEATURES:
+            xb_val, xfb_val = batch[0]
+            yb_val = batch[1]
+        else:
+            xb_val, yb_val = batch
+            xfb_val = None
+
+        d_hat = attacker(xb_val, training=False)
         d_raw = tf.tanh(d_hat / TEMP)
         delta = eps * d_raw
-        x_adv = tf.clip_by_value(xb + delta, 0.0, 1.0)
-        y_tgt = tf.one_hot(tf.fill((tf.shape(yb)[0],), TARGET_CLASS), depth=yb.shape[1])
-        y_pred = detector(x_adv, training=False)
+        x_adv = tf.clip_by_value(xb_val + delta, 0.0, 1.0)
+        y_tgt = tf.one_hot(tf.fill((tf.shape(yb_val)[0],), TARGET_CLASS), depth=yb_val.shape[1])
+        if xfb_val is not None:
+            y_pred = detector([x_adv, xfb_val], training=False)
+        else:
+            y_pred = detector(x_adv, training=False)
         vt.append(ce(y_tgt, y_pred).numpy())
         bps.append(tf.reduce_mean(tf.reduce_sum(y_tgt * y_pred, axis=1)).numpy())
         fsats.append(tf.reduce_mean(tf.cast(tf.abs(delta) >= 0.9*eps, tf.float32)).numpy())
