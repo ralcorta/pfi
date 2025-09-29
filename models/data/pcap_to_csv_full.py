@@ -60,24 +60,23 @@ def generate_csv(normal_dir, malware_dir, output_csv):
     print(f'\n✅ CSV final guardado en: {output_csv}')
     print(f'🧹 Total de paquetes descartados por payload corto (<{MIN_PAYLOAD_LEN} bytes): {total_discarded}')
 
-if __name__ == '__main__':
-    # Get the project root directory (where this script is located)
-    PROJECT_ROOT = Path(__file__).parent.parent.parent
-    
-    # Use relative paths from project root
-    normal_dir = PROJECT_ROOT / "models" / "data" / "backup" / "Benign"
-    malware_dir = PROJECT_ROOT / "models" / "data" / "backup" / "Malware"
-    output_csv = PROJECT_ROOT / "models" / "data" / "traffic_dataset_full.csv"
-    
-    # Check if directories exist
+if __name__ == '_main_':
+    # Raíz del repo (desde models/data/pcap_to_csv_full.py → PFI/)
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+    # Usar backup/full como origen
+    normal_dir = PROJECT_ROOT / "data" / "backup" / "full" / "Benign"
+    malware_dir = PROJECT_ROOT / "data" / "backup" / "full" / "Malware"
+    # Guardar CSV en PFI/data/
+    output_csv  = PROJECT_ROOT / "data" / "traffic_dataset_full.csv"
+
     if not normal_dir.exists():
         print(f"❌ Normal directory not found: {normal_dir}")
         sys.exit(1)
-    
     if not malware_dir.exists():
         print(f"❌ Malware directory not found: {malware_dir}")
         sys.exit(1)
-    
+
     print(f"📁 Using normal directory: {normal_dir}")
     print(f"📁 Using malware directory: {malware_dir}")
     print(f"📁 Output CSV: {output_csv}")
