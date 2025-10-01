@@ -1,247 +1,113 @@
-"""Network traffic capture for live monitoring and offline PCAP analysis."""
+# app/sensor/src/core/traffic_capture.py
+"""
+Captura de tráfico de red en tiempo real usando Scapy
+"""
 
+import asyncio
 import time
-from pathlib import Path
-from typing import Generator, List, Optional
-
-import pyshark
-from scapy.all import PcapReader, sniff
+from typing import AsyncGenerator, List
+from scapy.all import sniff, AsyncSniffer
 from scapy.packet import Packet
-
-from ..utils.config import CaptureConfig
-from ..utils.logger import get_logger
-
-logger = get_logger(__name__)
-
+import logging
 
 class TrafficCapture:
-    """Network traffic capture for ransomware detection."""
+    """Captura tráfico de red en tiempo real"""
     
-    def __init__(self, config: CaptureConfig):
-        """Initialize traffic capture.
+    def __init__(self, interface: str, filter: str = None, buffer_size: int = 100, logger=None):
+        self.interface = interface
+        self.filter = filter or "udp port 4789"  # Puerto por defecto para VPC Mirroring
+        self.buffer_size = buffer_size
+        self.logger = logger or logging.getLogger(__name__)
         
-        Args:
-            config: Capture configuration
-        """
-        self.config = config
-        self.is_capturing = False
-        self.packet_count = 0
+        self.sniffer = None
+        self.packet_buffer = []
+        self.running = False
+        self.last_flush = time.time()
+        self.flush_interval = 1.0  # Flush cada 1 segundo
+    
+    async def start(self):
+        """Inicia la captura de tráfico"""
+        self.logger.info(f"📡 Iniciando captura en interfaz: {self.interface}")
+        self.logger.info(f"🔍 Filtro: {self.filter}")
         
-        logger.info(
-            "Traffic capture initialized",
-            interface=config.interface,
-            filter=config.filter,
-            timeout=config.timeout
+        self.running = True
+        
+        # Crear sniffer asíncrono
+        self.sniffer = AsyncSniffer(
+            iface=self.interface,
+            filter=self.filter,
+            prn=self._packet_handler,
+            store=False  # No almacenar paquetes, solo procesar
         )
-    
-    def start_live_capture(self) -> Generator[Packet, None, None]:
-        """Start live packet capture.
         
-        Yields:
-            Captured network packets
-            
-        Raises:
-            PermissionError: If insufficient privileges for packet capture
-            ValueError: If interface doesn't exist
-        """
-        logger.info("Starting live packet capture", interface=self.config.interface)
+        # Iniciar captura en hilo separado
+        self.sniffer.start()
+        self.logger.info("✅ Captura iniciada")
+    
+    def _packet_handler(self, packet: Packet):
+        """Manejador de paquetes capturados"""
+        if not self.running:
+            return
         
         try:
-            self.is_capturing = True
+            # Agregar paquete al buffer
+            self.packet_buffer.append(packet)
             
-            # Use scapy for packet capture
-            for packet in sniff(
-                iface=self.config.interface,
-                filter=self.config.filter if self.config.filter else None,
-                timeout=self.config.timeout,
-                store=False  # Don't store packets in memory
-            ):
-                if not self.is_capturing:
-                    break
+            # Flush si el buffer está lleno o ha pasado el tiempo
+            current_time = time.time()
+            if (len(self.packet_buffer) >= self.buffer_size or 
+                current_time - self.last_flush >= self.flush_interval):
+                self._flush_buffer()
                 
-                self.packet_count += 1
-                yield packet
-                
-                # Log progress periodically
-                if self.packet_count % 1000 == 0:
-                    logger.info("Captured packets", count=self.packet_count)
-                    
-        except PermissionError:
-            logger.error(
-                "Insufficient privileges for packet capture. "
-                "Run with sudo or use --privileged flag."
-            )
-            raise
         except Exception as e:
-            logger.error("Live capture failed", error=str(e))
-            raise
-        finally:
-            self.is_capturing = False
-            logger.info("Live capture stopped", total_packets=self.packet_count)
+            self.logger.error(f"❌ Error procesando paquete: {e}")
     
-    def read_pcap_file(self, pcap_path: str) -> Generator[Packet, None, None]:
-        """Read packets from PCAP file.
-        
-        Args:
-            pcap_path: Path to PCAP file
-            
-        Yields:
-            Packets from PCAP file
-            
-        Raises:
-            FileNotFoundError: If PCAP file doesn't exist
-            ValueError: If PCAP file is corrupted
-        """
-        pcap_file = Path(pcap_path)
-        if not pcap_file.exists():
-            raise FileNotFoundError(f"PCAP file not found: {pcap_path}")
-        
-        logger.info("Reading PCAP file", path=pcap_path)
-        
-        try:
-            with PcapReader(pcap_path) as pcap_reader:
-                for packet in pcap_reader:
-                    self.packet_count += 1
-                    yield packet
-                    
-                    # Log progress periodically
-                    if self.packet_count % 1000 == 0:
-                        logger.info("Processed packets", count=self.packet_count)
-                        
-        except Exception as e:
-            logger.error("PCAP reading failed", error=str(e), path=pcap_path)
-            raise
-        finally:
-            logger.info("PCAP reading completed", total_packets=self.packet_count)
+    def _flush_buffer(self):
+        """Envía el buffer de paquetes para procesamiento"""
+        if self.packet_buffer:
+            # Crear evento para notificar que hay paquetes listos
+            asyncio.create_task(self._notify_packets_ready(self.packet_buffer.copy()))
+            self.packet_buffer.clear()
+            self.last_flush = time.time()
     
-    def stop_capture(self) -> None:
-        """Stop packet capture."""
-        self.is_capturing = False
-        logger.info("Capture stop requested")
+    async def _notify_packets_ready(self, packets: List[Packet]):
+        """Notifica que hay paquetes listos para procesar"""
+        # Este método será sobrescrito por el generador
+        pass
     
-    def get_statistics(self) -> dict:
-        """Get capture statistics.
+    async def get_packets(self) -> AsyncGenerator[List[Packet], None]:
+        """Generador asíncrono de lotes de paquetes"""
+        packet_queue = asyncio.Queue()
         
-        Returns:
-            Dictionary with capture statistics
-        """
-        return {
-            "is_capturing": self.is_capturing,
-            "packet_count": self.packet_count,
-            "interface": self.config.interface,
-            "filter": self.config.filter
-        }
-
-
-class PysharkCapture:
-    """Alternative capture implementation using pyshark for better packet parsing."""
+        # Sobrescribir el método de notificación
+        async def notify_packets(packets):
+            await packet_queue.put(packets)
+        
+        self._notify_packets_ready = notify_packets
+        
+        # Generar lotes de paquetes
+        while self.running:
+            try:
+                # Esperar paquetes con timeout
+                packets = await asyncio.wait_for(packet_queue.get(), timeout=5.0)
+                yield packets
+            except asyncio.TimeoutError:
+                # Timeout normal, continuar
+                continue
+            except Exception as e:
+                self.logger.error(f"❌ Error en generador de paquetes: {e}")
+                break
     
-    def __init__(self, config: CaptureConfig):
-        """Initialize pyshark capture.
+    async def stop(self):
+        """Detiene la captura de tráfico"""
+        self.logger.info("🛑 Deteniendo captura de tráfico...")
+        self.running = False
         
-        Args:
-            config: Capture configuration
-        """
-        self.config = config
-        self.capture: Optional[pyshark.LiveCapture] = None
-        self.is_capturing = False
-        self.packet_count = 0
+        if self.sniffer:
+            self.sniffer.stop()
         
-        logger.info(
-            "Pyshark capture initialized",
-            interface=config.interface,
-            filter=config.filter
-        )
-    
-    def start_live_capture(self) -> Generator[Packet, None, None]:
-        """Start live packet capture using pyshark.
+        # Procesar paquetes restantes
+        if self.packet_buffer:
+            self._flush_buffer()
         
-        Yields:
-            Captured network packets
-            
-        Raises:
-            PermissionError: If insufficient privileges
-            Exception: If capture fails
-        """
-        logger.info("Starting pyshark live capture", interface=self.config.interface)
-        
-        try:
-            self.capture = pyshark.LiveCapture(
-                interface=self.config.interface,
-                bpf_filter=self.config.filter if self.config.filter else None
-            )
-            
-            self.is_capturing = True
-            
-            for packet in self.capture.sniff_continuously():
-                if not self.is_capturing:
-                    break
-                
-                self.packet_count += 1
-                
-                # Convert pyshark packet to scapy packet
-                scapy_packet = self._pyshark_to_scapy(packet)
-                if scapy_packet:
-                    yield scapy_packet
-                
-                # Log progress periodically
-                if self.packet_count % 1000 == 0:
-                    logger.info("Captured packets", count=self.packet_count)
-                    
-        except PermissionError:
-            logger.error(
-                "Insufficient privileges for packet capture. "
-                "Run with sudo or use --privileged flag."
-            )
-            raise
-        except Exception as e:
-            logger.error("Pyshark capture failed", error=str(e))
-            raise
-        finally:
-            self.is_capturing = False
-            if self.capture:
-                self.capture.close()
-            logger.info("Pyshark capture stopped", total_packets=self.packet_count)
-    
-    def _pyshark_to_scapy(self, pyshark_packet) -> Optional[Packet]:
-        """Convert pyshark packet to scapy packet.
-        
-        Args:
-            pyshark_packet: Pyshark packet object
-            
-        Returns:
-            Scapy packet object or None if conversion fails
-        """
-        try:
-            # Get raw packet data
-            raw_data = pyshark_packet.get_raw_packet()
-            
-            # Create scapy packet from raw data
-            from scapy.all import Ether
-            scapy_packet = Ether(raw_data)
-            
-            return scapy_packet
-            
-        except Exception as e:
-            logger.debug("Failed to convert pyshark packet", error=str(e))
-            return None
-    
-    def stop_capture(self) -> None:
-        """Stop packet capture."""
-        self.is_capturing = False
-        if self.capture:
-            self.capture.close()
-        logger.info("Pyshark capture stop requested")
-    
-    def get_statistics(self) -> dict:
-        """Get capture statistics.
-        
-        Returns:
-            Dictionary with capture statistics
-        """
-        return {
-            "is_capturing": self.is_capturing,
-            "packet_count": self.packet_count,
-            "interface": self.config.interface,
-            "filter": self.config.filter
-        }
+        self.logger.info("✅ Captura detenida")

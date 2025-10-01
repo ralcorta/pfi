@@ -1,37 +1,19 @@
-model:
-  path: "../../../models/convlstm_model.keras"
-  input_shape: [10, 32, 32, 1]
+# app/sensor/configs/demo_config.yaml
+sensor:
+  name: "ransomware-detector-demo"
+  version: "1.0.0"
 
-detection:
-  threshold: 0.80
-  window_size: 10
-  packet_size: 1024
-
+# Configuración para demo
 capture:
-  interface: "en0"
-  filter: ""
-  timeout: 1.0
-  buffer_size: 1000
+  interface: "eth0"
+  filter: "udp port 4789"
+  buffer_size: 50 # Buffer más pequeño para demo
 
-alerts:
-  stdout: true
-  sqs:
-    enabled: false
-    queue_url: ""
-    region: "us-east-1"
-  sns:
-    enabled: false
-    topic_arn: ""
-    region: "us-east-1"
+# Modelo con umbral más sensible para demo
+model:
+  path: "models/training/detection/convlstm_model.keras"
+  confidence_threshold: 0.6 # Más sensible para demo
 
-logging:
-  level: "INFO"
-  file: "logs/sensor.log"
-  format: "json"
-  max_size: "10MB"
-  backup_count: 5
-
-performance:
-  max_memory_mb: 500
-  gc_interval: 1000
-  batch_timeout: 5.0
+# Procesamiento optimizado para demo
+processing:
+  sequence_length: 20

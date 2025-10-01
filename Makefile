@@ -618,8 +618,102 @@ github-secrets-list: ## Listar secrets de GitHub
 	@echo "$(BLUE)🔐 Secrets de GitHub:$(RESET)"
 	@gh secret list
 
+
+
+
+
+
 # =============================================================================
-# 17. COMANDOS DE CONVENIENCIA
+# 17 ENTRENAMIENTO COMPLETO CON ADVERSARIAL RL - VERSIÓN SIMPLE
+# =============================================================================
+
+.PHONY: train-adversarial-rl
+train-adversarial-rl: ## 🚀 Entrenamiento completo: extract → train-all → obfuscate → retrain-adversarial → adversarial-rl
+	@echo "$(CYAN)🚀 INICIANDO ENTRENAMIENTO COMPLETO CON ADVERSARIAL RL$(RESET)"
+	@echo "$(YELLOW)⏱️ Tiempo estimado: 45-90 minutos$(RESET)"
+	@read -p "¿Continuar? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	@echo ""
+	@echo "$(GREEN)📦 Paso 1/5: Extrayendo datos...$(RESET)"
+	@cd models/data && poetry run python pcap_to_csv_full.py
+	@echo "$(GREEN)🤖 Paso 2/5: Entrenando detector...$(RESET)"
+	@$(MAKE) train-all
+	@echo "$(GREEN)🔒 Paso 3/5: Ofuscando datos...$(RESET)"
+	@$(MAKE) obfuscate
+	@echo "$(GREEN)🔄 Paso 4/5: Re-entrenamiento adversarial...$(RESET)"
+	@$(MAKE) retrain-adversarial
+	@echo "$(GREEN)🎮 Paso 5/5: Adversarial Reinforcement Learning...$(RESET)"
+	@cd models/training/adversarial-reinforcement && poetry run python 1_adversarial_reinforcement.py
+	@echo ""
+	@echo "$(GREEN)🎉 ENTRENAMIENTO COMPLETO FINALIZADO!$(RESET)"
+	@echo "$(CYAN)📁 Modelos generados:$(RESET)"
+	@ls -la models/training/detection/*.keras 2>/dev/null || echo "  No hay modelos en detection"
+	@ls -la models/training/adversarial-reinforcement/*.keras 2>/dev/null || echo "  No hay modelos en adversarial-reinforcement"
+
+.PHONY: check-adversarial-rl
+check-adversarial-rl: ## Verificar prerrequisitos para Adversarial RL
+	@echo "$(BLUE)🔍 Verificando prerrequisitos...$(RESET)"
+	@if [ -d "models/data/backup" ]; then \
+		benign=$$(ls models/data/backup/Benign/*.pcap 2>/dev/null | wc -l); \
+		malware=$$(ls models/data/backup/Malware/*.pcap 2>/dev/null | wc -l); \
+		echo "✅ Archivos .pcap: $$benign benignos, $$malware malware"; \
+	else \
+		echo "❌ Directorio models/data/backup no encontrado"; \
+	fi
+	@if command -v poetry >/dev/null 2>&1; then \
+		echo "✅ Poetry instalado"; \
+	else \
+		echo "❌ Poetry no encontrado"; \
+	fi
+	@if [ -f "models/training/adversarial-reinforcement/1_adversarial_reinforcement.py" ]; then \
+		echo "✅ Script Adversarial RL encontrado"; \
+	else \
+		echo "❌ Script Adversarial RL no encontrado"; \
+	fi
+
+.PHONY: resume-adversarial-rl
+resume-adversarial-rl: ## Reanudar desde el último paso completado
+	@echo "$(BLUE)🔄 Reanudando entrenamiento...$(RESET)"
+	@if [ ! -f "models/data/traffic_dataset_full.csv" ]; then \
+		echo "📍 Reanudando desde: Extracción"; \
+		$(MAKE) _adversarial-step1-extract; \
+	elif [ ! -f "models/training/detection/convlstm_model.keras" ]; then \
+		echo "📍 Reanudando desde: Entrenamiento detector"; \
+		$(MAKE) _adversarial-step2-train-all; \
+	elif [ ! -f "models/training/detection/X_adv_eval.npy" ]; then \
+		echo "📍 Reanudando desde: Ofuscación"; \
+		$(MAKE) _adversarial-step3-obfuscate; \
+	elif [ ! -f "models/training/detection/convlstm_model_advtrained.keras" ]; then \
+		echo "📍 Reanudando desde: Re-entrenamiento adversarial"; \
+		$(MAKE) _adversarial-step4-retrain-adversarial; \
+	elif [ ! -f "models/training/adversarial-reinforcement/convlstm_model_adversarial.keras" ]; then \
+		echo "📍 Reanudando desde: Adversarial RL"; \
+		$(MAKE) _adversarial-step5-reinforcement-learning; \
+	else \
+		echo "✅ Entrenamiento ya completado"; \
+	fi
+
+.PHONY: _adversarial-step1-extract
+_adversarial-step1-extract:
+	@cd models/data && poetry run python pcap_to_csv_full.py
+
+.PHONY: _adversarial-step2-train-all
+_adversarial-step2-train-all:
+	@$(MAKE) train-all
+
+.PHONY: _adversarial-step3-obfuscate
+_adversarial-step3-obfuscate:
+	@$(MAKE) obfuscate
+
+.PHONY: _adversarial-step4-retrain-adversarial
+_adversarial-step4-retrain-adversarial:
+	@$(MAKE) retrain-adversarial
+
+.PHONY: _adversarial-step5-reinforcement-learning
+_adversarial-step5-reinforcement-learning:
+	@cd models/training/adversarial-reinforcement && poetry run python 1_adversarial_reinforcement.py
+
+# =============================================================================
+# 18. COMANDOS DE CONVENIENCIA
 # =============================================================================
 
 .PHONY: run

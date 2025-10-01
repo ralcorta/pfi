@@ -9,11 +9,14 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.models import load_model
 
+# Forzar float32 por defecto
+tf.keras.backend.set_floatx('float32')
+
 # -------------------------
 # Config
 # -------------------------
-DATA_DIR = Path(".")
-DETECTOR_PATH = DATA_DIR / "models/training/detection/convlstm_model.keras"
+DATA_DIR = Path("../detection")
+DETECTOR_PATH = DATA_DIR / "convlstm_model.keras"
 
 TARGET_CLASS = 0  # Benigno
 
@@ -183,12 +186,17 @@ print(f"Probe de validación: {probe_xb.shape[0]} muestras", flush=True)
 # -------------------------
 @tf.function(reduce_retracing=True)
 def pgd_warm_start(x, y_tgt, eps, steps):
+    # Asegurar que x sea float32 desde el inicio
+    x = tf.cast(x, tf.float32)
+    
     if steps <= 0:
         return x
+    
     alpha = eps / tf.cast(steps, tf.float32)
     # arranque aleatorio en la bola L∞
     delta = tf.random.uniform(tf.shape(x), minval=-eps, maxval=eps, dtype=tf.float32)
     adv = tf.clip_by_value(x + delta, 0.0, 1.0)
+    
     for _ in tf.range(steps):
         with tf.GradientTape() as tape_pgd:
             tape_pgd.watch(adv)
@@ -215,6 +223,9 @@ def cosine_alignment_loss(delta, g):
 # Paso de entrenamiento
 # -------------------------
 def train_step_impl(x, y_true, eps):
+    # Asegurar que x sea float32 desde el inicio
+    x = tf.cast(x, tf.float32)
+    
     y_tgt = tf.one_hot(tf.fill((tf.shape(y_true)[0],), TARGET_CLASS), depth=y_true.shape[1])
 
     # Warm seed ya aplicado afuera si corresponde
@@ -224,7 +235,12 @@ def train_step_impl(x, y_true, eps):
         # Anti-saturación: tanh en zona lineal y penalización
         delta_raw = tf.tanh(delta_hat / TEMP)     # ~[-1,1] con gradiente vivo
         delta = eps * delta_raw                   # [-ε, +ε]
+        
+        # Asegurar que delta también sea float32
+        delta = tf.cast(delta, tf.float32)
+        
         x_adv = tf.clip_by_value(x + delta, 0.0, 1.0)
+
 
         # Clasificación del detector en x_adv
         y_pred = detector(x_adv, training=False)
@@ -298,20 +314,35 @@ def debug_grad_norms(x, y_true, eps, max_vars=GRAD_DEBUG_LAYERS):
 # -------------------------
 # Helpers de validación
 # -------------------------
-def eval_val_fixed_eps(attacker_model, detector_model, val_dataset, eps_fixed):
-    vals, probs, fr_sats = [], [], []
-    for xb, yb in val_dataset:
-        d_hat = attacker_model(xb, training=False)
-        d_raw = tf.tanh(d_hat / TEMP)
-        delta = eps_fixed * d_raw
+def eval_val_fixed_eps(attacker, detector, val_ds, eps):
+    """Evaluación con epsilon fijo para comparar épocas"""
+    total_loss = 0.0
+    total_benign_p = 0.0
+    total_frac_sat = 0.0
+    n_batches = 0
+    
+    for xb, yb in val_ds:
+        # Asegurar que xb sea float32
+        xb = tf.cast(xb, tf.float32)
+        
+        delta_hat = attacker(xb, training=False)
+        delta_raw = tf.tanh(delta_hat / TEMP)
+        delta = eps * delta_raw
+        
+        # Asegurar que delta también sea float32
+        delta = tf.cast(delta, tf.float32)
+        
         x_adv = tf.clip_by_value(xb + delta, 0.0, 1.0)
+        
         y_tgt = tf.one_hot(tf.fill((tf.shape(yb)[0],), TARGET_CLASS), depth=yb.shape[1])
-        y_pred = detector_model(x_adv, training=False)
-        v = ce(y_tgt, y_pred)
-        vals.append(v.numpy())
-        probs.append(tf.reduce_mean(tf.reduce_sum(y_tgt * y_pred, axis=1)).numpy())
-        fr_sats.append(tf.reduce_mean(tf.cast(tf.abs(delta) >= 0.9*eps_fixed, tf.float32)).numpy())
-    return float(np.mean(vals)), float(np.mean(probs)), float(np.mean(fr_sats))
+        y_pred = detector(x_adv, training=False)
+        
+        total_loss += ce(y_tgt, y_pred).numpy()
+        total_benign_p += tf.reduce_mean(tf.reduce_sum(y_tgt * y_pred, axis=1)).numpy()
+        total_frac_sat += tf.reduce_mean(tf.cast(tf.abs(delta) >= 0.9*eps, tf.float32)).numpy()
+        n_batches += 1
+    
+    return float(total_loss / n_batches), float(total_benign_p / n_batches), float(total_frac_sat / n_batches)
 
 # -------------------------
 # Entrenamiento
@@ -364,9 +395,11 @@ for epoch in range(1, EPOCHS+1):
 
         if batch_idx % PRINT_EVERY == 0 or batch_idx == steps_per_epoch:
             with tf.device('/CPU:0'):
-                d_hat = attacker(probe_xb, training=False)
+                # Asegurar que probe_xb sea float32
+                probe_xb_f32 = tf.cast(probe_xb, tf.float32)
+                d_hat = attacker(probe_xb_f32, training=False)
                 d_raw = tf.tanh(d_hat / TEMP)
-                xa = tf.clip_by_value(probe_xb + eps * d_raw, 0.0, 1.0)
+                xa = tf.clip_by_value(probe_xb_f32 + eps * d_raw, 0.0, 1.0)
                 yp = detector(xa, training=False)
                 y_pred = tf.argmax(yp, axis=1)
                 asr_probe = float(tf.reduce_mean(tf.cast(y_pred == TARGET_CLASS, tf.float32)).numpy())
@@ -386,10 +419,12 @@ for epoch in range(1, EPOCHS+1):
     # Validación (malware-only) al ε actual
     vt, bps, fsats = [], [], []
     for xb, yb in val_ds:
-        d_hat = attacker(xb, training=False)
+        # Asegurar que xb sea float32
+        xb_f32 = tf.cast(xb, tf.float32)
+        d_hat = attacker(xb_f32, training=False)
         d_raw = tf.tanh(d_hat / TEMP)
         delta = eps * d_raw
-        x_adv = tf.clip_by_value(xb + delta, 0.0, 1.0)
+        x_adv = tf.clip_by_value(xb_f32 + delta, 0.0, 1.0)
         y_tgt = tf.one_hot(tf.fill((tf.shape(yb)[0],), TARGET_CLASS), depth=yb.shape[1])
         y_pred = detector(x_adv, training=False)
         vt.append(ce(y_tgt, y_pred).numpy())

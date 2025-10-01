@@ -1,192 +1,113 @@
-"""Inference engine for ransomware detection using ConvLSTM model."""
+# app/sensor/src/core/inference_engine.py
+"""
+Motor de inferencia para análisis de malware en tiempo real
+"""
 
+import asyncio
 import time
-from typing import List, Optional, Tuple
-
 import numpy as np
 import tensorflow as tf
-from scapy.packet import Packet
-
-from ..utils.config import DetectionConfig, ModelConfig
-from ..utils.logger import get_logger
-
-logger = get_logger(__name__)
-
+from typing import List, Dict, Any
+import logging
 
 class InferenceEngine:
-    """Inference engine for real-time ransomware detection."""
+    """Motor de inferencia para detección de malware"""
     
-    def __init__(self, model_config: ModelConfig, detection_config: DetectionConfig):
-        """Initialize inference engine.
+    def __init__(self, model_path: str, confidence_threshold: float = 0.5, logger=None):
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+        self.logger = logger or logging.getLogger(__name__)
         
-        Args:
-            model_config: Model configuration
-            detection_config: Detection configuration
-        """
-        self.model_config = model_config
-        self.detection_config = detection_config
-        self.model: Optional[tf.keras.Model] = None
-        self.packet_buffer: List[Packet] = []
-        self.inference_count = 0
-        self.detection_count = 0
-        
-        self._load_model()
-        
-        logger.info(
-            "Inference engine initialized",
-            model_path=model_config.path,
-            threshold=detection_config.threshold,
-            window_size=detection_config.window_size
-        )
+        self.model = None
+        self.stats = {
+            'inferences': 0,
+            'avg_inference_time': 0.0,
+            'malware_detections': 0
+        }
     
-    def _load_model(self) -> None:
-        """Load the trained ConvLSTM model."""
+    async def load_model(self):
+        """Carga el modelo de ML"""
+        self.logger.info(f"🤖 Cargando modelo: {self.model_path}")
+        
         try:
-            self.model = tf.keras.models.load_model(self.model_config.path)
-            logger.info("Model loaded successfully", model_path=self.model_config.path)
+            # Cargar modelo en hilo separado para no bloquear
+            loop = asyncio.get_event_loop()
+            self.model = await loop.run_in_executor(
+                None, 
+                tf.keras.models.load_model, 
+                self.model_path
+            )
+            
+            self.logger.info("✅ Modelo cargado exitosamente")
+            self.logger.info(f"📊 Arquitectura: {self.model.input_shape} -> {self.model.output_shape}")
+            
         except Exception as e:
-            logger.error("Failed to load model", error=str(e), model_path=self.model_config.path)
+            self.logger.error(f"❌ Error cargando modelo: {e}")
             raise
     
-    def add_packet(self, packet: Packet) -> Optional[Tuple[float, bool]]:
-        """Add packet to buffer and perform inference if window is complete.
-        
-        Args:
-            packet: Network packet to analyze
-            
-        Returns:
-            Tuple of (confidence, is_malicious) if inference was performed, None otherwise
-        """
-        self.packet_buffer.append(packet)
-        
-        # Check if we have enough packets for inference
-        if len(self.packet_buffer) >= self.detection_config.window_size:
-            return self._perform_inference()
-        
-        return None
-    
-    def _perform_inference(self) -> Tuple[float, bool]:
-        """Perform inference on the current packet window.
-        
-        Returns:
-            Tuple of (confidence, is_malicious)
-        """
-        if not self.model:
-            raise RuntimeError("Model not loaded")
+    async def analyze_sequences(self, sequences: np.ndarray) -> List[Dict[str, Any]]:
+        """Analiza secuencias de paquetes"""
+        if self.model is None:
+            raise RuntimeError("Modelo no cargado")
         
         start_time = time.time()
         
         try:
-            # Get the window of packets
-            window_packets = self.packet_buffer[:self.detection_config.window_size]
-            
-            # Convert packets to model input format
-            model_input = self._packets_to_model_input(window_packets)
-            
-            # Perform inference
-            predictions = self.model.predict(model_input, verbose=0)
-            
-            # Get the confidence score (assuming binary classification)
-            confidence = float(predictions[0][1])  # Probability of malicious class
-            
-            # Determine if malicious based on threshold
-            is_malicious = confidence >= self.detection_config.threshold
-            
-            # Update statistics
-            self.inference_count += 1
-            if is_malicious:
-                self.detection_count += 1
+            # Ejecutar inferencia en hilo separado
+            loop = asyncio.get_event_loop()
+            predictions = await loop.run_in_executor(
+                None,
+                self.model.predict,
+                sequences,
+                {'verbose': 0}
+            )
             
             inference_time = time.time() - start_time
             
-            logger.info(
-                "Inference completed",
-                confidence=confidence,
-                is_malicious=is_malicious,
-                threshold=self.detection_config.threshold,
-                inference_time_ms=inference_time * 1000,
-                total_inferences=self.inference_count,
-                total_detections=self.detection_count
-            )
+            # Procesar resultados
+            results = []
+            for i, pred in enumerate(predictions):
+                malware_prob = float(pred[1])
+                benign_prob = float(pred[0])
+                is_malware = malware_prob > self.confidence_threshold
+                
+                result = {
+                    'sequence_id': i,
+                    'timestamp': time.time(),
+                    'malware_probability': malware_prob,
+                    'benign_probability': benign_prob,
+                    'confidence': max(malware_prob, benign_prob),
+                    'is_malware': is_malware,
+                    'sequence_count': len(sequences)
+                }
+                
+                results.append(result)
             
-            # Remove processed packets from buffer (sliding window)
-            self.packet_buffer = self.packet_buffer[1:]
+            # Actualizar estadísticas
+            self._update_stats(inference_time, results)
             
-            return confidence, is_malicious
+            return results
             
         except Exception as e:
-            logger.error("Inference failed", error=str(e))
-            # Clear buffer on error to prevent accumulation
-            self.packet_buffer.clear()
+            self.logger.error(f"❌ Error en inferencia: {e}")
             raise
     
-    def _packets_to_model_input(self, packets: List[Packet]) -> np.ndarray:
-        """Convert packets to model input format.
+    def _update_stats(self, inference_time: float, results: List[Dict]):
+        """Actualiza estadísticas del motor"""
+        self.stats['inferences'] += 1
         
-        Args:
-            packets: List of packets to convert
-            
-        Returns:
-            Model input array with shape (1, window_size, 32, 32, 1)
-        """
-        from .packet_processor import PacketProcessor
+        # Actualizar tiempo promedio de inferencia
+        total_time = self.stats['avg_inference_time'] * (self.stats['inferences'] - 1)
+        self.stats['avg_inference_time'] = (total_time + inference_time) / self.stats['inferences']
         
-        processor = PacketProcessor(
-            packet_size=self.detection_config.packet_size,
-            image_size=32
-        )
+        # Contar detecciones de malware
+        malware_count = sum(1 for r in results if r['is_malware'])
+        self.stats['malware_detections'] += malware_count
         
-        # Process packets to images
-        images = processor.process_packet_batch(packets)
-        
-        # Ensure we have the correct number of packets
-        if len(images) < self.detection_config.window_size:
-            # Pad with zero images
-            padding_needed = self.detection_config.window_size - len(images)
-            zero_image = np.zeros((1, 32, 32, 1), dtype=np.float32)
-            padding = np.repeat(zero_image, padding_needed, axis=0)
-            images = np.concatenate([images, padding], axis=0)
-        elif len(images) > self.detection_config.window_size:
-            # Truncate to window size
-            images = images[:self.detection_config.window_size]
-        
-        # Add batch dimension
-        model_input = np.expand_dims(images, axis=0)
-        
-        # Verify shape
-        expected_shape = (1, self.detection_config.window_size, 32, 32, 1)
-        if model_input.shape != expected_shape:
-            logger.warning(
-                "Unexpected model input shape",
-                actual=model_input.shape,
-                expected=expected_shape
+        # Log cada 100 inferencias
+        if self.stats['inferences'] % 100 == 0:
+            self.logger.info(
+                f"🤖 Stats - Inferencias: {self.stats['inferences']}, "
+                f"Tiempo promedio: {self.stats['avg_inference_time']:.3f}s, "
+                f"Detecciones malware: {self.stats['malware_detections']}"
             )
-        
-        return model_input
-    
-    def get_statistics(self) -> dict:
-        """Get inference statistics.
-        
-        Returns:
-            Dictionary with inference statistics
-        """
-        detection_rate = (self.detection_count / self.inference_count * 100) if self.inference_count > 0 else 0
-        
-        return {
-            "total_inferences": self.inference_count,
-            "total_detections": self.detection_count,
-            "detection_rate": detection_rate,
-            "buffer_size": len(self.packet_buffer),
-            "threshold": self.detection_config.threshold
-        }
-    
-    def reset_statistics(self) -> None:
-        """Reset inference statistics."""
-        self.inference_count = 0
-        self.detection_count = 0
-        logger.info("Inference statistics reset")
-    
-    def clear_buffer(self) -> None:
-        """Clear the packet buffer."""
-        self.packet_buffer.clear()
-        logger.info("Packet buffer cleared")

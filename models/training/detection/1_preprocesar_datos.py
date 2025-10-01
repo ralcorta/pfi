@@ -3,11 +3,15 @@ import numpy as np
 from tensorflow.keras.utils import to_categorical
 from scipy import stats
 import warnings
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
 # ───────────────────────────────────────────────
 # 1. Configuración
 # ───────────────────────────────────────────────
+SCRIPT_DIR = Path(__file__).parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # Ajustar según la profundidad
+
 CSV_TYPE = '_full'
 PAYLOAD_LEN = 1024
 
@@ -16,7 +20,7 @@ USE_PCAP_LIMIT = False  # Cambiar a True si quieres limitar por archivo PCAP
 MAX_ROWS_PER_PCAP = 100000  # Solo se usa si USE_PCAP_LIMIT = True
 
 SEQUENCE_LENGTH = 20  # Aumentado de 10 a 20 para capturar mejor patrones de ransomware
-CSV_PATH = f'../../data/traffic_dataset{CSV_TYPE}.csv'
+CSV_PATH = PROJECT_ROOT / f'models/data/traffic_dataset{CSV_TYPE}.csv'
 
 # ───────────────────────────────────────────────
 # 2. Funciones para features específicas de ransomware
