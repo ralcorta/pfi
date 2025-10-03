@@ -11,7 +11,7 @@ class AIModelProcessor:
     """Procesador de paquetes con modelo de IA"""
     
     def __init__(self, model_path: Optional[str] = None) -> None:
-        self.model_path = model_path or "models/training/detection/convlstm_model.keras"
+        self.model_path = model_path or "models/training/detection/convlstm_model_advtrained.keras"
         self.model: Optional[tf.keras.Model] = None
         self.packet_buffer: list[bytes] = []
         self.buffer_size: int = 20  # Tamaño de secuencia para el modelo
@@ -81,7 +81,7 @@ class AIModelProcessor:
                 'timestamp': time.time(),
                 'malware_probability': malware_prob,
                 'benign_probability': benign_prob,
-                'is_malware': malware_prob > 0.9,
+                'is_malware': malware_prob > 0.8,
                 'confidence': max(malware_prob, benign_prob)
             }
             

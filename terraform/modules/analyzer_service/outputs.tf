@@ -3,3 +3,5 @@ output "nlb_dns" { value = aws_lb.nlb.dns_name }
 output "cluster_name" { value = aws_ecs_cluster.cluster.name }
 output "service_name" { value = aws_ecs_service.service.name }
 output "vpc_endpoint_id" { value = aws_vpc_endpoint.sagemaker_runtime.id }
+output "demo_control_table_name" { value = aws_dynamodb_table.demo_control.name }
+output "demo_control_table_arn" { value = aws_dynamodb_table.demo_control.arn }

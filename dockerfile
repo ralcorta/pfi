@@ -18,31 +18,24 @@ COPY pyproject.toml poetry.lock ./
 # Instalar Poetry y dependencias
 RUN pip install poetry && \
     poetry config virtualenvs.create false && \
-    poetry install --no-dev
+    poetry install --no-root
 
 # Copiar código de la aplicación
 COPY app/ ./app/
 COPY models/ ./models/
 
-# Crear usuario no-root
-RUN useradd -m -u 1000 sensor && \
-    chown -R sensor:sensor /app
-
-# Cambiar a usuario no-root
-USER sensor
-
-# Exponer puerto para health checks
-EXPOSE 8080
-
 # Variables de entorno por defecto
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV NETWORK_INTERFACE=eth0
-ENV CAPTURE_FILTER="udp port 4789"
-ENV BUFFER_SIZE=100
-ENV CONFIDENCE_THRESHOLD=0.7
-ENV LOG_LEVEL=INFO
-ENV SNS_ENABLED=false
+
+# Variables AWS - usar AWS Academy si existen, sino dummy para local
+ARG AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
+ARG AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
+ARG AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+
+ENV AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+ENV AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+ENV AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
 
 # Comando por defecto
-CMD ["python", "-m", "app.sensor.src.main"]
+CMD ["python", "-m", "app.sensor.src.main", "--interface", "eth0", "--filter", "tcp"]
