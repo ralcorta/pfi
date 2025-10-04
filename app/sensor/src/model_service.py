@@ -1,4 +1,3 @@
-# app/sensor/src/ai_model_processor.py
 import time
 import logging
 from typing import Optional, Dict, Any
@@ -7,17 +6,15 @@ import numpy as np
 import tensorflow as tf
 
 
-class AIModelProcessor:
+class ModelService:
     """Procesador de paquetes con modelo de IA"""
     
     def __init__(self, model_path: Optional[str] = None) -> None:
         self.model_path = model_path or "models/training/detection/convlstm_model_advtrained.keras"
-        self.model: Optional[tf.keras.Model] = None
+        self.model: tf.keras.Model = None
         self.packet_buffer: list[bytes] = []
         self.buffer_size: int = 20  # Tamaño de secuencia para el modelo
         self.package_size: int = 1024  # Tamaño de secuencia para el modelo
-        
-        # Configurar logging
         self.logger: logging.Logger = logging.getLogger(__name__)
     
     def load_model(self) -> None:
@@ -33,7 +30,6 @@ class AIModelProcessor:
         """Extrae payload del paquete TCP"""
         if packet.haslayer(Raw):
             payload = bytes(packet[Raw].load)
-            # Normalizar tamaño a 1024 bytes
             if len(payload) < self.package_size:
                 payload += b'\x00' * (self.package_size - len(payload))
             if len(payload) > self.package_size:
@@ -43,52 +39,34 @@ class AIModelProcessor:
     
     def process_packet(self, packet: Packet) -> Optional[Dict[str, Any]]:
         """Procesa un paquete TCP individual"""
-        # Extraer payload
         payload = self.extract_payload(packet)
         if payload is None:
             return None
         
-        # Agregar al buffer
         self.packet_buffer.append(payload)
         
-        # Si el buffer está lleno, procesar con el modelo
         if len(self.packet_buffer) >= self.buffer_size:
             result = self.analyze_with_model()
-            # Mantener solo los últimos paquetes para continuidad
-            self.packet_buffer = self.packet_buffer[-10:]  # Mantener 10 para solapamiento
+            self.packet_buffer = self.packet_buffer[-10:]
             return result
         
-        return None
+        return
     
     def analyze_with_model(self) -> Optional[Dict[str, Any]]:
         """Analiza el buffer de paquetes con el modelo de IA"""
-        if self.model is None:
-            self.logger.warning("⚠️ Modelo no cargado")
-            return None
-        
         try:
-            # Convertir buffer a secuencia para el modelo
             sequence = self.create_sequence()
-            
-            # Hacer predicción
             prediction = self.model.predict(sequence, verbose=0)
-            
-            # Interpretar resultado
-            malware_prob: float = float(prediction[0][1])
-            benign_prob: float = float(prediction[0][0])
-            
-            result: Dict[str, Any] = {
+            malware_prob: float = float(prediction[0][0])
+            benign_prob: float = float(prediction[0][1])
+            is_malware = malware_prob > 0.8
+            return {
                 'timestamp': time.time(),
                 'malware_probability': malware_prob,
                 'benign_probability': benign_prob,
-                'is_malware': malware_prob > 0.8,
-                'confidence': max(malware_prob, benign_prob)
+                'is_malware': is_malware,
             }
-            
-            return result
-            
         except Exception as e:
-            self.logger.error(f"❌ Error en análisis con modelo: {e}")
             return None
     
     def create_sequence(self) -> np.ndarray:

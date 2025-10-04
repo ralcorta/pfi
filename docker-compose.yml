@@ -53,38 +53,4 @@ services:
       - .:/app
     working_dir: /app
     privileged: true
-    command: [
-        "python",
-        "-m",
-        "app.sensor.src.main",
-        "--interface",
-        "eth0", # Usar eth0 dentro del container
-        "--filter",
-        "tcp",
-      ]
-
-  # sensor-app-local:
-  #   build: .
-  #   container_name: sensor-app-local
-  #   depends_on:
-  #     - dynamodb-local
-  #   environment:
-  #     - AWS_ENDPOINT_URL=http://dynamodb-local:8000
-  #     - AWS_ACCESS_KEY_ID=dummy
-  #     - AWS_SECRET_ACCESS_KEY=dummy
-  #     - AWS_DEFAULT_REGION=us-east-1
-  #   network_mode: host
-  #   volumes:
-  #     - .:/app
-  #   working_dir: /app
-  #   privileged: true
-  #   command:
-  #     [
-  #       "python",
-  #       "-m",
-  #       "app.sensor.src.main",
-  #       "--interface",
-  #       "en0",
-  #       "--filter",
-  #       "tcp",
-  #     ]
+    command: ["python", "-m", "app.sensor.src.main", "--port", "4789"]

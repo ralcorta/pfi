@@ -327,36 +327,36 @@ _adversarial-step4-retrain-adversarial:
 _adversarial-step5-reinforcement-learning:
 	@cd models/training/adversarial-reinforcement && poetry run python 1_adversarial_reinforcement.py
 
-# =============================================================================
-# 8. COMANDOS DE CONVENIENCIA
-# =============================================================================
-
-.PHONY: run
-run: shell ## Alias para abrir shell (compatibilidad)
 
 # =============================================================================
-# 9. COMANDOS DE TESTING DEL SENSOR
+# 8. COMANDOS DE TESTING DEL SENSOR
 # =============================================================================
+.PHONY: build-clean
+build-clean: ## Limpiar cache de Docker y rebuild
+	@echo "🧹 Limpiando cache de Docker..."
+	@docker-compose down
+	@docker system prune -f
+	@docker-compose build --no-cache sensor-app-mock
+	@echo "✅ Cache limpiada y rebuild completado"
 
-
-.PHONY: demo-status
-demo-status: ## Ver estado del modo demo
-	@echo "📊 Verificando estado del modo demo..."
-	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
+.PHONY: run-udp-server-local
+init-udp-server-local: ## Ejecutar servidor UDP localmente para pruebas
+	@echo "⏳ Inicializando DynamoDB localmente..."
 	@docker-compose up -d dynamodb-local
-	@sleep 3
-	@poetry run python scripts/enable_demo.py status
-
-.PHONY: test-demo
-test-demo: ## Testear con archivos .pcap (modo demo)
-	@echo "🎭 Activando modo demo..."
-	@echo "⏳ Inicializando DynamoDB..."
-	@docker-compose up -d dynamodb-local
-	@sleep 5
-	@echo "⏳ Creando tabla DynamoDB..."
+	@echo "⏳ Creando tabla DynamoDB localmente..."
 	@poetry run python scripts/init_local_dynamo.py
-	@echo "🚀 Ejecutando sensor en modo demo..."
+
+.PHONY: run-udp-server-local
+run-udp-server-local: ## Ejecutar servidor UDP localmente para pruebas
+	@echo "🚀 Iniciando servidor UDP local en puerto 4789..."
 	@docker-compose up sensor-app-mock
+	# @poetry run python -m app.sensor.src.main --port 4789
+
+.PHONY: test-udp-server
+test-udp-server: ## Probar el servidor UDP con paquetes sintéticos
+	@echo "🧪 Probando servidor UDP..."
+	@echo "⚠️  Asegúrate de que el servidor esté corriendo en otro terminal"
+	@poetry run python scripts/test_udp_server.py
 
 .PHONY: test-udp
 test-udp: ## Testear con tráfico UDP simulado
@@ -366,34 +366,11 @@ test-udp: ## Testear con tráfico UDP simulado
 	@echo "📊 Verificando detecciones en DynamoDB..."
 	@poetry run python scripts/check_malware_detections.py
 
-.PHONY: test-stop
-test-stop: ## Detener todos los contenedores
-	@echo "🛑 Deteniendo contenedores..."
-	@docker-compose down
-	@echo "✅ Contenedores detenidos"
-
-.PHONY: test-logs
-test-logs: ## Ver logs del sensor en tiempo real
-	@echo "📋 Mostrando logs del sensor..."
-	@docker-compose logs -f sensor-app-mock
-
-.PHONY: test-clean
-test-clean: ## Limpiar cache de Docker y rebuild
-	@echo "🧹 Limpiando cache de Docker..."
-	@docker-compose down
-	@docker system prune -f
-	@docker-compose build --no-cache sensor-app-mock
-	@echo "✅ Cache limpiada y rebuild completado"
-
-.PHONY: test-check
-test-check: ## Verificar detecciones de malware en DynamoDB
-	@echo "📊 Verificando detecciones de malware..."
-	@poetry run python scripts/check_malware_detections.py
-
-.PHONY: test-show-dynamo
-test-show-dynamo: ## Mostrar todos los items de la tabla DynamoDB
-	@echo "📊 Mostrando todos los items de la tabla DynamoDB..."
-	@poetry run python scripts/show_dynamo.py
+.PHONY: demo-on
+demo-on-local: ## Habilitar modo demo
+	@echo "🎭 Habilitando modo demo..."
+	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
+	@poetry run python scripts/enable_demo.py enable --pcap models/data/small/Malware/Zeus.pcap
 
 .PHONY: demo-on
 demo-on: ## Habilitar modo demo
@@ -406,6 +383,15 @@ demo-off: ## Deshabilitar modo demo
 	@echo "🛡️ Deshabilitando modo demo..."
 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
 	@poetry run python scripts/enable_demo.py disable
+
+.PHONY: dynamo-explorer
+dynamo-explorer: ## Explorador completo de DynamoDB
+	@poetry run python scripts/dynamo_explorer.py
+
+
+
+.PHONY: run
+run: shell ## Alias para abrir shell (compatibilidad)
 
 # Comando por defecto
 .DEFAULT_GOAL := help

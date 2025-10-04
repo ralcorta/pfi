@@ -38,4 +38,4 @@ ENV AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
 ENV AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
 
 # Comando por defecto
-CMD ["python", "-m", "app.sensor.src.main", "--interface", "eth0", "--filter", "tcp"]
+CMD ["python", "-m", "app.sensor.src.main", "--port", "4789"]

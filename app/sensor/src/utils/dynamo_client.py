@@ -6,6 +6,8 @@ import os
 import boto3
 from typing import Dict, Any, Optional
 
+from app.sensor.src.utils.config import Config
+
 
 class DynamoClient:
     """Cliente simple para leer y escribir en cualquier tabla DynamoDB"""
@@ -17,6 +19,7 @@ class DynamoClient:
         Args:
             table_name: Nombre de la tabla DynamoDB
         """
+        self.config = Config()
         self.table_name = table_name
         
         # Usar endpoint local si está configurado
