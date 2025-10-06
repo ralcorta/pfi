@@ -1,5 +1,7 @@
 output "nlb_arn" { value = aws_lb.nlb.arn }
 output "nlb_dns" { value = aws_lb.nlb.dns_name }
+output "alb_arn" { value = aws_lb.alb.arn }
+output "alb_dns" { value = aws_lb.alb.dns_name }
 output "cluster_name" { value = aws_ecs_cluster.cluster.name }
 output "service_name" { value = aws_ecs_service.service.name }
 output "vpc_endpoint_id" { value = aws_vpc_endpoint.sagemaker_runtime.id }

@@ -8,7 +8,7 @@ from app.sensor.src.model_service import ModelService
 from app.sensor.src.utils.config import Config
 from app.sensor.src.utils.dynamo_client import DynamoClient
 
-class SensorServer:
+class UdpServer:
     """Servidor UDP para recibir tráfico del VPC Mirroring en puerto 4789"""
     
     def __init__(self, port=4789, model_path=None):
@@ -34,6 +34,7 @@ class SensorServer:
     
     def update_console(self):
         """Actualiza la consola con información en tiempo real"""
+        return
         if Config.ENVIRONMENT == "local":
             self.clear_screen()
             print("=" * 80)

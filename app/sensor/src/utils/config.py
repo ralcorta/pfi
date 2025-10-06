@@ -16,7 +16,7 @@ class Config:
     ECS_CLUSTER=os.getenv('ECS_CLUSTER', 'mirror-cluster')
     ECS_SERVICE=os.getenv('ECS_SERVICE', 'mirror-sensor')
     SAGEMAKER_ENDPOINT=os.getenv('SAGEMAKER_ENDPOINT', 'sm-detector')
-    MODEL_PATH=os.getenv('MODEL_PATH', 'models/convlstm_model_ransomware_final.keras')
+    MODEL_PATH=os.getenv('MODEL_PATH', 'models/training/detection/convlstm_model_ransomware_final.keras')
     ENVIRONMENT=os.getenv('ENVIRONMENT', 'local')
     
     @classmethod

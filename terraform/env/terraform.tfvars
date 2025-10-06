@@ -1,20 +1,18 @@
 region          = "us-east-1"
-analyzer_vpc_id = "vpc-04f3ea9a31c5074e6"
+analyzer_vpc_id = "vpc-01c47e35bacf9d921"
 analyzer_subnets = [
-  "subnet-08183d25308a7b30d",
-  "subnet-0dc22891c19569ebb",
-  "subnet-0f5a6094224b28196",
-  "subnet-0a51ede7059f05a4d",
-  "subnet-06eea1669cf32203c",
-  "subnet-00d8a8a7f5e57e86e"
+  "subnet-0394f1c697668afb6",
+  "subnet-016ef34ab9b5d64f0",
+  "subnet-0f84a9edb6e6164d3",
+  "subnet-096dc00a35a9ebe82",
+  "subnet-09de370d51e9bdb18",
+  "subnet-00377007e619fdad5",
 ]
-container_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mirror-sensor:latest"
+container_image      = "339712899854.dkr.ecr.us-east-1.amazonaws.com/mirror-sensor:latest"
 sagemaker_endpoint   = "sm-detector"
-allowed_ingress_cidr = "131.229.145.26"
+allowed_ingress_cidr = "0.0.0.0/0"
 
 tags = {
   Project = "NetMirror-ML"
-  Env     = "academy"
+  Env     = "production"
 }
-
-

@@ -30,6 +30,13 @@ resource "aws_security_group" "sensor" {
     }
   }
 
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.api.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -77,7 +84,7 @@ resource "aws_ecs_task_definition" "task" {
   task_role_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
 
   runtime_platform {
-    cpu_architecture        = "ARM64"
+    cpu_architecture        = "X86_64" # "ARM64"
     operating_system_family = "LINUX"
   }
 
@@ -86,9 +93,15 @@ resource "aws_ecs_task_definition" "task" {
       name         = "sensor",
       image        = var.container_image,
       essential    = true,
-      portMappings = [{ containerPort = 4789, protocol = "udp" }],
+      portMappings = [
+        { containerPort = 4789, protocol = "udp" },
+        { containerPort = 8080, protocol = "tcp" }
+      ],
       environment = [
-        { name = "SM_ENDPOINT_NAME", value = var.sagemaker_endpoint_name }
+        { name = "SM_ENDPOINT_NAME", value = var.sagemaker_endpoint_name },
+        { name = "AWS_DEFAULT_REGION", value = var.region },
+        { name = "AWS_REGION", value = var.region },
+        { name = "ENVIRONMENT", value = "aws" }
       ],
       logConfiguration = {
         logDriver = "awslogs",
@@ -104,6 +117,37 @@ resource "aws_ecs_task_definition" "task" {
   tags = var.tags
 }
 
+# Security Group para la API HTTP
+# Permite acceso HTTP/HTTPS a la API REST
+resource "aws_security_group" "api" {
+  name        = "sensor-api-security-group"
+  description = "Permite HTTP/HTTPS para API REST"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = var.tags
+}
+
 # Network Load Balancer para distribuir el tráfico UDP del VPC Mirroring
 # Recibe el tráfico duplicado de las VPCs cliente y lo distribuye a las instancias del sensor
 # Es interno para mantener la seguridad y no exponer el sensor a internet
@@ -113,6 +157,18 @@ resource "aws_lb" "nlb" {
   internal           = true
   load_balancer_type = "network"
   subnets            = var.private_subnet_ids
+  tags               = var.tags
+}
+
+# Application Load Balancer para la API HTTP
+# Expone la API REST para health check y consultas de detecciones
+# Es interno para mantener la seguridad
+resource "aws_lb" "alb" {
+  name               = "sensor-api-alb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = var.public_subnet_ids
+  security_groups    = [aws_security_group.api.id]
   tags               = var.tags
 }
 
@@ -137,6 +193,30 @@ resource "aws_lb_target_group" "tg" {
   tags = var.tags
 }
 
+# Target Group para HTTP API
+# Define a qué contenedores ECS enviar el tráfico HTTP
+resource "aws_lb_target_group" "http_tg" {
+  name        = "sensor-http-tg"
+  vpc_id      = var.vpc_id
+  port        = 8080
+  protocol    = "HTTP"
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/health"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = var.tags
+}
+
 # Listener del Load Balancer que escucha en puerto 4789 para tráfico UDP
 # Recibe el tráfico duplicado del VPC Mirroring y lo reenvía al Target Group
 # Puerto 4789 es el estándar para VPC Traffic Mirroring en AWS
@@ -149,6 +229,19 @@ resource "aws_lb_listener" "udp" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.tg.arn
+  }
+}
+
+# Listener HTTP para la API REST
+# Escucha en puerto 80 y redirige al Target Group HTTP
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.http_tg.arn
   }
 }
 
@@ -166,13 +259,19 @@ resource "aws_ecs_service" "service" {
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [aws_security_group.sensor.id]
-    assign_public_ip = false
+    assign_public_ip = true
   }
 
   load_balancer {
     target_group_arn = aws_lb_target_group.tg.arn
     container_name   = "sensor"
     container_port   = 4789
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.http_tg.arn
+    container_name   = "sensor"
+    container_port   = 8080
   }
 
   lifecycle { ignore_changes = [desired_count] }

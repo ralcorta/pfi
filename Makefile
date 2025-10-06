@@ -349,8 +349,46 @@ init-udp-server-local: ## Ejecutar servidor UDP localmente para pruebas
 .PHONY: run-udp-server-local
 run-udp-server-local: ## Ejecutar servidor UDP localmente para pruebas
 	@echo "🚀 Iniciando servidor UDP local en puerto 4789..."
-	@docker-compose up sensor-app-mock
-	# @poetry run python -m app.sensor.src.main --port 4789
+	@poetry run python -m app.sensor.src.main --udp-port 4789
+
+.PHONY: run-hybrid-server-local
+run-hybrid-server-local: ## Ejecutar servidor híbrido UDP + HTTP localmente
+	@echo "🚀 Iniciando servidor híbrido local..."
+	@echo "   📡 UDP: puerto 4789"
+	@echo "   🌐 HTTP: puerto 8080"
+	@poetry run python -m app.sensor.src.main --udp-port 4789 --http-port 8080
+
+.PHONY: test-api
+test-api: ## Probar endpoints de la API HTTP
+	@echo "🧪 Probando endpoints de la API..."
+	@echo "📋 Health Check:"
+	@curl -s http://localhost:8080/health | jq .
+	@echo ""
+	@echo "📊 Detecciones:"
+	@curl -s http://localhost:8080/detections | jq .
+	@echo ""
+	@echo "📈 Estadísticas:"
+	@curl -s http://localhost:8080/stats | jq .
+
+.PHONY: init-app
+init-app: ## Inicializar aplicación completa (DynamoDB + registros base)
+	@echo "🚀 Inicializando aplicación completa..."
+	@poetry run python scripts/init_app.py
+
+.PHONY: init-aws-app
+init-aws-app: ## Inicializar aplicación en AWS (registros base en DynamoDB)
+	@echo "🚀 Inicializando aplicación en AWS..."
+	@poetry run python scripts/init_aws_app.py
+
+.PHONY: check-status
+check-status: ## Verificar estado de la aplicación
+	@echo "🔍 Verificando estado de la aplicación..."
+	@poetry run python scripts/check_app_status.py
+
+.PHONY: check-aws-status
+check-aws-status: ## Verificar estado de la aplicación en AWS
+	@echo "🔍 Verificando estado de la aplicación en AWS..."
+	@poetry run python scripts/check_aws_status.py
 
 .PHONY: test-udp-server
 test-udp-server: ## Probar el servidor UDP con paquetes sintéticos
@@ -367,13 +405,13 @@ test-udp: ## Testear con tráfico UDP simulado
 	@poetry run python scripts/check_malware_detections.py
 
 .PHONY: demo-on
-demo-on-local: ## Habilitar modo demo
+demo-on-local: ## Habilitar modo demo (local)
 	@echo "🎭 Habilitando modo demo..."
 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
 	@poetry run python scripts/enable_demo.py enable --pcap models/data/small/Malware/Zeus.pcap
 
 .PHONY: demo-on
-demo-on: ## Habilitar modo demo
+demo-on: ## Habilitar modo demo (AWS)
 	@echo "🎭 Habilitando modo demo..."
 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
 	@poetry run python scripts/enable_demo.py enable --pcap /app/models/data/small/Malware/Zeus.pcap
@@ -384,11 +422,167 @@ demo-off: ## Deshabilitar modo demo
 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
 	@poetry run python scripts/enable_demo.py disable
 
+# =============================================================================
+# COMANDOS DE DEMO VÍA API HTTP
+# =============================================================================
+
+.PHONY: demo-start
+demo-start: ## 🎭 Iniciar demo vía API HTTP
+	@echo "🎭 Iniciando demo vía API HTTP..."
+	@ALB_DNS=$$(cd terraform/env && terraform output -raw alb_dns 2>/dev/null || echo ""); \
+	if [ -z "$$ALB_DNS" ]; then \
+		echo "❌ No se pudo obtener DNS del ALB. Asegúrate de que la infraestructura esté desplegada."; \
+		exit 1; \
+	fi; \
+	echo "🌐 Usando ALB: $$ALB_DNS"; \
+	curl -X POST "http://$$ALB_DNS/demo/start" \
+		-H "Content-Type: application/json" \
+		-d '{"pcap_file": "/app/models/data/small/Malware/Zeus.pcap"}' | jq .
+
+.PHONY: demo-stop
+demo-stop: ## 🛡️ Detener demo vía API HTTP
+	@echo "🛡️ Deteniendo demo vía API HTTP..."
+	@ALB_DNS=$$(cd terraform/env && terraform output -raw alb_dns 2>/dev/null || echo ""); \
+	if [ -z "$$ALB_DNS" ]; then \
+		echo "❌ No se pudo obtener DNS del ALB. Asegúrate de que la infraestructura esté desplegada."; \
+		exit 1; \
+	fi; \
+	echo "🌐 Usando ALB: $$ALB_DNS"; \
+	curl -X POST "http://$$ALB_DNS/demo/stop" \
+		-H "Content-Type: application/json" | jq .
+
+.PHONY: demo-toggle
+demo-toggle: ## 🔄 Alternar demo vía API HTTP
+	@echo "🔄 Alternando demo vía API HTTP..."
+	@ALB_DNS=$$(cd terraform/env && terraform output -raw alb_dns 2>/dev/null || echo ""); \
+	if [ -z "$$ALB_DNS" ]; then \
+		echo "❌ No se pudo obtener DNS del ALB. Asegúrate de que la infraestructura esté desplegada."; \
+		exit 1; \
+	fi; \
+	echo "🌐 Usando ALB: $$ALB_DNS"; \
+	curl -X POST "http://$$ALB_DNS/demo/toggle" \
+		-H "Content-Type: application/json" \
+		-d '{"pcap_file": "/app/models/data/small/Malware/Zeus.pcap"}' | jq .
+
+.PHONY: demo-status
+demo-status: ## 📊 Ver estado del demo vía API HTTP
+	@echo "📊 Verificando estado del demo vía API HTTP..."
+	@ALB_DNS=$$(cd terraform/env && terraform output -raw alb_dns 2>/dev/null || echo ""); \
+	if [ -z "$$ALB_DNS" ]; then \
+		echo "❌ No se pudo obtener DNS del ALB. Asegúrate de que la infraestructura esté desplegada."; \
+		exit 1; \
+	fi; \
+	echo "🌐 Usando ALB: $$ALB_DNS"; \
+	curl -s "http://$$ALB_DNS/demo/status" | jq .
+
+.PHONY: test-dynamodb-permissions
+test-dynamodb-permissions: ## 🧪 Test de permisos DynamoDB en ECS
+	@echo "🧪 Probando permisos de DynamoDB en ECS..."
+	@ALB_DNS=$$(cd terraform/env && terraform output -raw alb_dns 2>/dev/null || echo ""); \
+	if [ -z "$$ALB_DNS" ]; then \
+		echo "❌ No se pudo obtener DNS del ALB. Asegúrate de que la infraestructura esté desplegada."; \
+		exit 1; \
+	fi; \
+	echo "🌐 Usando ALB: $$ALB_DNS"; \
+	curl -X POST "http://$$ALB_DNS/test/dynamodb-write" \
+		-H "Content-Type: application/json" | jq .
+
 .PHONY: dynamo-explorer
 dynamo-explorer: ## Explorador completo de DynamoDB
 	@poetry run python scripts/dynamo_explorer.py
 
+# =============================================================================
+# DEPLOYMENT Y CONFIGURACIÓN DE CUENTAS
+# =============================================================================
 
+.PHONY: setup-new-account
+setup-new-account: ## Configurar automáticamente para nueva cuenta AWS
+	@echo "🚀 Configurando infraestructura para nueva cuenta AWS..."
+	@echo "⚠️  Asegúrate de tener AWS CLI configurado con las credenciales correctas"
+	@echo ""
+	@read -p "¿Continuar? (y/N): " -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		./scripts/deploy/setup_new_account.sh; \
+	else \
+		echo "❌ Configuración cancelada"; \
+	fi
+
+.PHONY: cleanup-account
+cleanup-account: ## Limpiar todos los recursos de la cuenta AWS
+	@echo "🧹 Limpiando recursos de la cuenta AWS..."
+	@echo "⚠️  ADVERTENCIA: Esto eliminará TODOS los recursos del proyecto"
+	@echo ""
+	@read -p "¿Estás seguro? (y/N): " -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		./scripts/deploy/cleanup_account.sh; \
+	else \
+		echo "❌ Limpieza cancelada"; \
+	fi
+
+.PHONY: get-account-info
+get-account-info: ## Obtener información de la cuenta AWS actual
+	@echo "📋 Información de la cuenta AWS:"
+	@echo "================================="
+	@aws sts get-caller-identity --query 'Account' --output text | xargs -I {} echo "Account ID: {}"
+	@aws configure get region | xargs -I {} echo "Región: {}"
+	@echo ""
+	@echo "🌐 VPC por defecto:"
+	@aws ec2 describe-vpcs --query 'Vpcs[?IsDefault==`true`].[VpcId,CidrBlock]' --output table
+	@echo ""
+	@echo "🔗 Subnets disponibles:"
+	@aws ec2 describe-vpcs --query 'Vpcs[?IsDefault==`true`].VpcId' --output text | xargs -I {} aws ec2 describe-subnets --filters "Name=vpc-id,Values={}" --query 'Subnets[*].[SubnetId,AvailabilityZone,MapPublicIpOnLaunch]' --output table
+
+.PHONY: update-ecr-config
+update-ecr-config: ## Actualizar configuración ECR con Account ID actual
+	@echo "🔄 Actualizando configuración ECR..."
+	@ACCOUNT_ID=$$(aws sts get-caller-identity --query Account --output text); \
+	REGION=$$(aws configure get region || echo "us-east-1"); \
+	echo "Account ID: $$ACCOUNT_ID"; \
+	echo "Región: $$REGION"; \
+	sed -i.bak "s/[0-9]*\.dkr\.ecr\.[^/]*\.amazonaws\.com/$$ACCOUNT_ID.dkr.ecr.$$REGION.amazonaws.com/g" terraform/env/terraform.tfvars; \
+	echo "✅ Configuración ECR actualizada en terraform/env/terraform.tfvars"
+
+.PHONY: reset-complete
+reset-complete: ## 🔄 BORRAR TODO y volver a crear desde cero (RESET COMPLETO)
+	@echo "🔄 RESET COMPLETO DEL SISTEMA"
+	@echo "============================="
+	@echo ""
+	@echo "⚠️  ADVERTENCIA: Esto eliminará TODOS los recursos existentes y los recreará"
+	@echo ""
+	@echo "El script va a:"
+	@echo "  1. 🧹 Borrar TODA la infraestructura existente"
+	@echo "  2. 🚀 Configurar la cuenta AWS desde cero"
+	@echo "  3. 🐳 Construir y subir nueva imagen Docker"
+	@echo "  4. 🏗️  Desplegar nueva infraestructura"
+	@echo "  5. ⚙️  Inicializar la aplicación"
+	@echo "  6. ✅ Verificar que todo funcione"
+	@echo ""
+	@read -p "¿Continuar con el reset completo? (y/N): " -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		./scripts/deploy/reset_complete.sh; \
+	else \
+		echo "❌ Reset cancelado"; \
+	fi
+
+.PHONY: redeploy
+redeploy: ## 🔄 REDEPLOY de la aplicación (nuevo código)
+	@echo "🔄 REDEPLOY DE LA APLICACIÓN"
+	@echo "============================="
+	@echo ""
+	@echo "Este script va a:"
+	@echo "  1. 🐳 Construir nueva imagen Docker con el código actualizado"
+	@echo "  2. 📤 Subir la imagen a ECR"
+	@echo "  3. 🚀 Forzar nuevo deployment de ECS (detendrá las tareas actuales)"
+	@echo "  4. ✅ Verificar que todo funcione correctamente"
+	@echo ""
+	@echo "⚠️  ADVERTENCIA: Esto detendrá las tareas ECS actuales y las reemplazará con nuevas"
+	@echo ""
+	@read -p "¿Continuar con el redeploy? (y/N): " -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		./scripts/deploy/redeploy_app.sh; \
+	else \
+		echo "❌ Redeploy cancelado"; \
+	fi
 
 .PHONY: run
 run: shell ## Alias para abrir shell (compatibilidad)
