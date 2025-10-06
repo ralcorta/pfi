@@ -53,4 +53,13 @@ services:
       - .:/app
     working_dir: /app
     privileged: true
-    command: ["python", "-m", "app.sensor.src.main", "--port", "4789"]
+    command:
+      [
+        "python",
+        "-m",
+        "app.sensor.src.main",
+        "--udp-port",
+        "4789",
+        "--http-port",
+        "8080",
+      ]

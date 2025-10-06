@@ -111,7 +111,12 @@ class UdpServer:
     def demo_thread(self):
         """Thread para manejar el modo demo"""
         while self.running:
-            data = self.dynamo_table.get({"id": "demo_control"})
+            try:
+                data = self.dynamo_table.get({"id": "demo_control"})
+            except Exception as e:
+                self.logger.error(f"❌ Error obteniendo demo_control: {e}")
+                return
+            
             if data and data.get("execute_demo") == "true":
                 self.demo_mode = True
                 self.current_packet_info = "🎭 Iniciando modo demo..."
@@ -119,10 +124,25 @@ class UdpServer:
                 
                 pcap_file = data.get("pcap_file", "")
                 if not pcap_file:
-                    pcap_file = "models/data/small/Malware/Zeus.pcap"
+                    pcap_file = "simulated_demo"
 
-                self.demo_packages = self.extract_packages_from_pcap(pcap_file)
-                self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
+                # Si es un demo simulado, no intentar procesar archivos PCAP reales
+                if pcap_file == "simulated_demo":
+                    self.demo_packages = []  # Lista vacía para demo simulado
+                    self.logger.info("🎭 Demo simulado iniciado - no se procesarán archivos PCAP reales")
+                else:
+                    try:
+                        self.demo_packages = self.extract_packages_from_pcap(pcap_file)
+                    except Exception as e:
+                        self.logger.error(f"❌ Error procesando archivo PCAP {pcap_file}: {e}")
+                        self.demo_mode = False
+                        self.current_packet_info = f"❌ Error en demo: {str(e)}"
+                        self.update_console()
+                        # Desactivar el demo en caso de error
+                        self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
+                        continue
+                # No desactivar el demo automáticamente - que el usuario lo controle
+                # self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
                 
                 self.current_packet_info = f"🎭 Procesando paquetes del demo..."
                 self.update_console()
@@ -136,6 +156,9 @@ class UdpServer:
                 self.demo_mode = False
                 self.current_packet_info = "✅ Demo completado - Volviendo a modo LIVE"
                 self.update_console()
+                
+                # Desactivar el demo en DynamoDB cuando termine
+                self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
             time.sleep(1)
     
     def parse_mirrored_packet(self, data):

@@ -11,6 +11,7 @@ import uvicorn
 
 from app.sensor.src.utils.dynamo_client import DynamoClient
 from app.sensor.src.utils.config import Config
+from app.sensor.src.docs_setup import setup_docs_endpoints, enhance_openapi_schema
 
 class HTTPServer:
     """Servidor HTTP con FastAPI"""
@@ -32,6 +33,10 @@ class HTTPServer:
         
         # Configurar rutas
         self._setup_routes()
+        
+        # Configurar documentación web automática
+        enhance_openapi_schema(self.app)
+        setup_docs_endpoints(self.app)
     
     def _setup_routes(self):
         """Configura las rutas de la API"""
@@ -150,124 +155,48 @@ class HTTPServer:
             except Exception as e:
                 self.logger.error(f"Error obteniendo estado demo: {e}")
                 raise HTTPException(status_code=500, detail=f"Error obteniendo estado demo: {str(e)}")
-
-        @self.app.post("/test/dynamodb-write")
-        async def test_dynamodb_write():
-            """Test para verificar permisos de escritura en DynamoDB"""
-            try:
-                # Crear un registro de test temporal
-                test_record = {
-                    'id': f'test_write_{int(time.time())}',
-                    'test_type': 'write_permission_test',
-                    'timestamp': int(time.time()),
-                    'message': 'Test de permisos de escritura en DynamoDB',
-                    'status': 'testing'
-                }
-                
-                self.logger.info(f"🧪 Iniciando test de escritura DynamoDB: {test_record['id']}")
-                
-                # Intentar escribir en DynamoDB
-                success = self.dynamo_table.save(test_record)
-                
-                if success:
-                    self.logger.info(f"✅ Test de escritura EXITOSO: {test_record['id']}")
-                    
-                    # Intentar leer el registro que acabamos de escribir
-                    try:
-                        read_result = self.dynamo_table.get({"id": test_record['id']})
-                        if read_result:
-                            self.logger.info(f"✅ Test de lectura EXITOSO: {test_record['id']}")
-                            
-                            # Limpiar el registro de test
-                            try:
-                                self.dynamo_table.delete({"id": test_record['id']})
-                                self.logger.info(f"✅ Test de eliminación EXITOSO: {test_record['id']}")
-                            except Exception as delete_error:
-                                self.logger.warning(f"⚠️ Test de eliminación falló: {delete_error}")
-                            
-                            return {
-                                "status": "success",
-                                "message": "✅ ECS tiene permisos COMPLETOS de DynamoDB (lectura, escritura, eliminación)",
-                                "test_results": {
-                                    "write": "✅ SUCCESS",
-                                    "read": "✅ SUCCESS", 
-                                    "delete": "✅ SUCCESS"
-                                },
-                                "test_record": test_record,
-                                "timestamp": time.time()
-                            }
-                        else:
-                            return {
-                                "status": "partial_success",
-                                "message": "⚠️ ECS puede ESCRIBIR pero no puede LEER de DynamoDB",
-                                "test_results": {
-                                    "write": "✅ SUCCESS",
-                                    "read": "❌ FAILED",
-                                    "delete": "❌ SKIPPED"
-                                },
-                                "test_record": test_record,
-                                "timestamp": time.time()
-                            }
-                    except Exception as read_error:
-                        self.logger.error(f"❌ Test de lectura falló: {read_error}")
-                        return {
-                            "status": "partial_success",
-                            "message": "⚠️ ECS puede ESCRIBIR pero no puede LEER de DynamoDB",
-                            "test_results": {
-                                "write": "✅ SUCCESS",
-                                "read": f"❌ FAILED: {str(read_error)}",
-                                "delete": "❌ SKIPPED"
-                            },
-                            "test_record": test_record,
-                            "timestamp": time.time()
-                        }
-                else:
-                    self.logger.error(f"❌ Test de escritura FALLÓ: {test_record['id']}")
-                    return {
-                        "status": "error",
-                        "message": "❌ ECS NO tiene permisos de ESCRITURA en DynamoDB",
-                        "test_results": {
-                            "write": "❌ FAILED",
-                            "read": "❌ SKIPPED",
-                            "delete": "❌ SKIPPED"
-                        },
-                        "test_record": test_record,
-                        "timestamp": time.time()
-                    }
-                    
-            except Exception as e:
-                self.logger.error(f"❌ Error en test de DynamoDB: {e}")
-                return {
-                    "status": "error",
-                    "message": f"❌ Error en test de DynamoDB: {str(e)}",
-                    "test_results": {
-                        "write": "❌ ERROR",
-                        "read": "❌ SKIPPED",
-                        "delete": "❌ SKIPPED"
-                    },
-                    "error_details": str(e),
-                    "timestamp": time.time()
-                }
         
+        @self.app.get("/debug/files")
+        async def list_files():
+            """Listar archivos en el directorio de modelos para debugging"""
+            import os
+            try:
+                models_dir = "/app/models"
+                if os.path.exists(models_dir):
+                    files = []
+                    for root, dirs, filenames in os.walk(models_dir):
+                        for filename in filenames:
+                            filepath = os.path.join(root, filename)
+                            files.append({
+                                "path": filepath,
+                                "size": os.path.getsize(filepath) if os.path.exists(filepath) else 0,
+                                "exists": os.path.exists(filepath)
+                            })
+                    return {"files": files, "models_dir": models_dir}
+                else:
+                    return {"error": f"Directorio {models_dir} no existe"}
+            except Exception as e:
+                return {"error": str(e)}
+
         @self.app.post("/demo/start")
-        async def start_demo(pcap_file: str = "/app/models/data/small/Malware/Zeus.pcap"):
-            """Iniciar modo demo con archivo .pcap específico"""
+        async def start_demo(pcap_file: str = "simulated_demo"):
+            """Iniciar modo demo simulado (sin archivo PCAP real)"""
             try:
                 demo_config = {
                     'id': 'demo_control',
                     'execute_demo': 'true',
                     'pcap_file': pcap_file,
                     'started_at': int(time.time()),
-                    'description': f'Demo iniciada con archivo: {pcap_file}'
+                    'description': f'Demo simulado iniciado: {pcap_file}'
                 }
                 
                 success = self.dynamo_table.save(demo_config)
                 
                 if success:
-                    self.logger.info(f"🎭 Demo iniciada con archivo: {pcap_file}")
+                    self.logger.info(f"🎭 Demo simulado iniciado: {pcap_file}")
                     return {
                         "status": "success",
-                        "message": f"Demo iniciada con archivo: {pcap_file}",
+                        "message": f"Demo simulado iniciado: {pcap_file}",
                         "demo_config": demo_config,
                         "timestamp": time.time()
                     }
@@ -338,7 +267,7 @@ class HTTPServer:
                 raise HTTPException(status_code=500, detail=f"Error deteniendo demo: {str(e)}")
         
         @self.app.post("/demo/toggle")
-        async def toggle_demo(pcap_file: str = "/app/models/data/small/Malware/Zeus.pcap"):
+        async def toggle_demo(pcap_file: str = "models/data/small/Malware/Zeus.pcap"):
             """Alternar entre modo demo y captura en vivo"""
             try:
                 # Obtener estado actual

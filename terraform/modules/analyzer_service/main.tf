@@ -51,15 +51,15 @@ resource "aws_security_group" "sensor" {
 # Permite al sensor acceder al modelo de IA de SageMaker sin salir a internet
 # Mejora la seguridad y reduce latencia para las inferencias del modelo de detección de ransomware
 # Está relacionado con: ECS task (inferencias), Security Group, subnets privadas
-resource "aws_vpc_endpoint" "sagemaker_runtime" {
-  vpc_id              = var.vpc_id
-  service_name        = "com.amazonaws.${var.region}.sagemaker.runtime"
-  vpc_endpoint_type   = "Interface"
-  private_dns_enabled = true
-  subnet_ids          = var.private_subnet_ids
-  security_group_ids  = [aws_security_group.sensor.id]
-  tags                = var.tags
-}
+# resource "aws_vpc_endpoint" "sagemaker_runtime" {
+#   vpc_id              = var.vpc_id
+#   service_name        = "com.amazonaws.${var.region}.sagemaker.runtime"
+#   vpc_endpoint_type   = "Interface"
+#   private_dns_enabled = true
+#   subnet_ids          = var.private_subnet_ids
+#   security_group_ids  = [aws_security_group.sensor.id]
+#   tags                = var.tags
+# }
 
 # Cluster ECS Fargate para ejecutar los contenedores del sensor
 # Proporciona la infraestructura serverless para ejecutar el sensor de detección de ransomware
@@ -183,12 +183,13 @@ resource "aws_lb_target_group" "tg" {
   protocol    = "UDP"
   target_type = "ip"
 
-  health_check {
-    protocol            = "TCP"
-    port                = "traffic-port"
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
+  # Health check deshabilitado para UDP - no es necesario para tráfico mirroring
+  # health_check {
+  #   protocol            = "TCP"
+  #   port                = "traffic-port"
+  #   healthy_threshold   = 2
+  #   unhealthy_threshold = 2
+  # }
 
   tags = var.tags
 }

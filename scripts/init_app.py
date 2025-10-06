@@ -178,19 +178,6 @@ class AppInitializer:
             self.logger.error(f"❌ Error configurando registros base: {e}")
             return False
     
-    def verify_model_exists(self):
-        """Verifica que el modelo de IA exista"""
-        self.logger.info("🤖 Verificando modelo de IA...")
-        
-        model_path = self.config.MODEL_PATH
-        if not os.path.exists(model_path):
-            self.logger.warning(f"⚠️ Modelo no encontrado en: {model_path}")
-            self.logger.info("💡 Asegúrate de que el modelo esté en la ruta correcta")
-            return False
-        
-        self.logger.info("✅ Modelo de IA encontrado")
-        return True
-    
     def test_application(self):
         """Prueba que la aplicación funcione correctamente"""
         self.logger.info("🧪 Probando aplicación...")
@@ -266,7 +253,6 @@ class AppInitializer:
             ("Iniciando DynamoDB local", self.start_dynamodb_local),
             ("Inicializando tablas DynamoDB", self.init_dynamodb_tables),
             ("Configurando registros base", self.setup_base_records),
-            ("Verificando modelo de IA", self.verify_model_exists),
             ("Probando aplicación", self.test_application),
         ]
         

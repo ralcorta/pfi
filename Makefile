@@ -587,5 +587,76 @@ redeploy: ## 🔄 REDEPLOY de la aplicación (nuevo código)
 .PHONY: run
 run: shell ## Alias para abrir shell (compatibilidad)
 
+# =============================================================================
+# 📚 DOCUMENTACIÓN DE LA API
+# =============================================================================
+# Comandos para generar y gestionar la documentación automática de la API
+# =============================================================================
+
+.PHONY: generate-docs
+generate-docs: ## 📚 Generar documentación automática de la API
+	@echo "📚 Generando documentación automática de la API..."
+	poetry run python scripts/generate_api_docs.py
+
+.PHONY: docs-openapi
+docs-openapi: ## 📋 Generar solo el esquema OpenAPI JSON
+	@echo "📋 Generando esquema OpenAPI..."
+	poetry run python -c "from scripts.generate_api_docs import generate_openapi_schema; generate_openapi_schema()"
+
+.PHONY: docs-markdown
+docs-markdown: ## 📝 Generar documentación en Markdown
+	@echo "📝 Generando documentación Markdown..."
+	poetry run python -c "from scripts.generate_api_docs import generate_markdown_docs; generate_markdown_docs()"
+
+.PHONY: docs-html
+docs-html: ## 🌐 Generar documentación HTML con Swagger UI
+	@echo "🌐 Generando documentación HTML..."
+	poetry run python -c "from scripts.generate_api_docs import generate_html_docs; generate_html_docs()"
+
+.PHONY: docs-serve
+docs-serve: ## 🚀 Servir documentación HTML localmente
+	@echo "🚀 Sirviendo documentación HTML en http://localhost:8000..."
+	@cd docs && python -m http.server 8000
+
+.PHONY: docs-open
+docs-open: ## 🔍 Abrir documentación en el navegador
+	@echo "🔍 Abriendo documentación..."
+	@if [ -f "docs/index.html" ]; then \
+		open docs/index.html; \
+	else \
+		echo "❌ Documentación no encontrada. Ejecuta 'make generate-docs' primero."; \
+	fi
+
+.PHONY: docs-clean
+docs-clean: ## 🧹 Limpiar archivos de documentación generados
+	@echo "🧹 Limpiando archivos de documentación..."
+	@rm -rf docs/
+	@echo "✅ Archivos de documentación eliminados"
+
+.PHONY: docs-status
+docs-status: ## 📊 Verificar estado de la documentación
+	@echo "📊 Estado de la documentación:"
+	@if [ -d "docs" ]; then \
+		echo "📁 Directorio docs: ✅ Existe"; \
+		if [ -f "docs/openapi.json" ]; then \
+			echo "📋 openapi.json: ✅ Existe"; \
+		else \
+			echo "📋 openapi.json: ❌ No existe"; \
+		fi; \
+		if [ -f "docs/API_DOCUMENTATION.md" ]; then \
+			echo "📝 API_DOCUMENTATION.md: ✅ Existe"; \
+		else \
+			echo "📝 API_DOCUMENTATION.md: ❌ No existe"; \
+		fi; \
+		if [ -f "docs/index.html" ]; then \
+			echo "🌐 index.html: ✅ Existe"; \
+		else \
+			echo "🌐 index.html: ❌ No existe"; \
+		fi; \
+	else \
+		echo "📁 Directorio docs: ❌ No existe"; \
+		echo "💡 Ejecuta 'make generate-docs' para crear la documentación"; \
+	fi
+
 # Comando por defecto
 .DEFAULT_GOAL := help

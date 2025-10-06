@@ -25,8 +25,10 @@ class DynamoClient:
         # Usar endpoint local si está configurado
         endpoint_url = os.getenv('AWS_ENDPOINT_URL')
         if endpoint_url:
+            print(f"Usando endpoint local: {endpoint_url}")
             self.dynamodb = boto3.resource('dynamodb', endpoint_url=endpoint_url)
         else:
+            print("Usando endpoint por defecto")
             self.dynamodb = boto3.resource('dynamodb')
         
         self.table = self.dynamodb.Table(table_name)

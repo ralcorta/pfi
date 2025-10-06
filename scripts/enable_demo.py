@@ -8,7 +8,7 @@ import sys
 import argparse
 from app.sensor.src.utils.dynamo_client import DynamoClient
 
-def enable_demo(pcap_file="/app/models/data/small/Malware/Zeus.pcap"):
+def enable_demo(pcap_file="models/data/small/Malware/Zeus.pcap"):
     """Habilita el modo demo con un archivo .pcap específico"""
     
     # Configurar DynamoDB local
@@ -111,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser(description='Controlar modo demo del sensor')
     parser.add_argument('action', choices=['enable', 'disable', 'status'], 
                        help='Acción a realizar')
-    parser.add_argument('--pcap', default='/app/models/data/small/Malware/Zeus.pcap',
+    parser.add_argument('--pcap', default='models/data/small/Malware/Zeus.pcap',
                        help='Archivo .pcap a usar en modo demo')
     
     args = parser.parse_args()

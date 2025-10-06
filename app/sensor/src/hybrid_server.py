@@ -33,6 +33,16 @@ class HybridServer:
         # Threads
         self.udp_thread = None
         self.http_thread = None
+        
+        # Configurar manejo de señales para ECS
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Maneja señales del sistema para shutdown graceful"""
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"🛑 Recibida señal {signal_name} ({signum}) - Iniciando shutdown graceful...")
+        self.running = False
     
     def start_servers(self):
         """Inicia ambos servidores en threads separados"""
@@ -113,20 +123,15 @@ def main():
     # Crear servidor híbrido
     server = HybridServer(args.udp_port, args.http_port, args.model)
     
-    # Configurar shutdown graceful
-    def signal_handler(signum, frame):
-        print(f"\n🛑 Deteniendo servidor híbrido...")
-        server.stop_servers()
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    # El manejo de señales ya está configurado en el constructor de HybridServer
     
     try:
         # Iniciar servidores
         server.start_servers()
     except KeyboardInterrupt:
         print("\n🛑 Interrumpido por usuario")
+    except Exception as e:
+        print(f"❌ Error en servidor híbrido: {e}")
     finally:
         server.stop_servers()
 

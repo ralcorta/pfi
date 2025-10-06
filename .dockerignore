@@ -57,3 +57,4 @@ models/*
 !models/data/small/Malware/Zeus.pcap
 !models/training/detection/convlstm_model.keras
 !models/training/detection/convlstm_model_advtrained.keras
+!*.keras
