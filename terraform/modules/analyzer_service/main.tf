@@ -1,6 +1,6 @@
 # Data sources para obtener información del contexto actual de AWS
-data "aws_caller_identity" "current" {}  # Obtiene el ID de la cuenta AWS actual
-data "aws_region" "current" {}           # Obtiene la región AWS actual
+data "aws_caller_identity" "current" {} # Obtiene el ID de la cuenta AWS actual
+data "aws_region" "current" {}          # Obtiene la región AWS actual
 
 # Grupo de logs de CloudWatch para almacenar los logs del sensor de tráfico
 # Sirve para monitorear y debuggear el comportamiento del sensor de detección de ransomware
@@ -90,9 +90,9 @@ resource "aws_ecs_task_definition" "task" {
 
   container_definitions = jsonencode([
     {
-      name         = "sensor",
-      image        = var.container_image,
-      essential    = true,
+      name      = "sensor",
+      image     = var.container_image,
+      essential = true,
       portMappings = [
         { containerPort = 4789, protocol = "udp" },
         { containerPort = 8080, protocol = "tcp" }
@@ -182,16 +182,7 @@ resource "aws_lb_target_group" "tg" {
   port        = 4789
   protocol    = "UDP"
   target_type = "ip"
-
-  # Health check deshabilitado para UDP - no es necesario para tráfico mirroring
-  # health_check {
-  #   protocol            = "TCP"
-  #   port                = "traffic-port"
-  #   healthy_threshold   = 2
-  #   unhealthy_threshold = 2
-  # }
-
-  tags = var.tags
+  tags        = var.tags
 }
 
 # Target Group para HTTP API
@@ -203,17 +194,18 @@ resource "aws_lb_target_group" "http_tg" {
   protocol    = "HTTP"
   target_type = "ip"
 
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/health"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
+  # Health check deshabilitado para evitar reinicios de pods
+  # health_check {
+  #   enabled             = true
+  #   healthy_threshold   = 2
+  #   interval            = 30
+  #   matcher             = "200"
+  #   path                = "/health"
+  #   port                = "traffic-port"
+  #   protocol            = "HTTP"
+  #   timeout             = 5
+  #   unhealthy_threshold = 2
+  # }
 
   tags = var.tags
 }
@@ -316,9 +308,9 @@ resource "aws_appautoscaling_policy" "cpu_target" {
 # Permite cambiar el comportamiento del sensor sin redeployar la aplicación
 # Está relacionado con: ECS task (lectura de configuración), aplicación sensor
 resource "aws_dynamodb_table" "demo_control" {
-  name           = "demo-pcap-control"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "id"
+  name         = "demo-pcap-control"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
 
   attribute {
     name = "id"

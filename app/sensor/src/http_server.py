@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import uvicorn
 
 from app.sensor.src.utils.dynamo_client import DynamoClient
@@ -178,9 +179,10 @@ class HTTPServer:
             except Exception as e:
                 return {"error": str(e)}
 
-        @self.app.post("/demo/start")
-        async def start_demo(pcap_file: str = "simulated_demo"):
+        @self.app.get("/demo/start")
+        async def start_demo():
             """Iniciar modo demo simulado (sin archivo PCAP real)"""
+            pcap_file = '/app/models/data/small/Malware/Zeus.pcap'
             try:
                 demo_config = {
                     'id': 'demo_control',

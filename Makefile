@@ -405,22 +405,33 @@ test-udp: ## Testear con tráfico UDP simulado
 	@poetry run python scripts/check_malware_detections.py
 
 .PHONY: demo-on
-demo-on-local: ## Habilitar modo demo (local)
-	@echo "🎭 Habilitando modo demo..."
-	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
-	@poetry run python scripts/enable_demo.py enable --pcap models/data/small/Malware/Zeus.pcap
+# demo-on-local: ## Habilitar modo demo (local)
+# 	@echo "🎭 Habilitando modo demo..."
+# 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
+# 	@poetry run python scripts/enable_demo.py enable --pcap models/data/small/Malware/Zeus.pcap
 
-.PHONY: demo-on
-demo-on: ## Habilitar modo demo (AWS)
-	@echo "🎭 Habilitando modo demo..."
-	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
-	@poetry run python scripts/enable_demo.py enable --pcap /app/models/data/small/Malware/Zeus.pcap
+# .PHONY: demo-on
+# demo-on: ## Habilitar modo demo (AWS)
+# 	@echo "🎭 Habilitando modo demo..."
+# 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
+# 	@poetry run python scripts/enable_demo.py enable --pcap /app/models/data/small/Malware/Zeus.pcap
 
-.PHONY: demo-off
-demo-off: ## Deshabilitar modo demo
-	@echo "🛡️ Deshabilitando modo demo..."
-	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
-	@poetry run python scripts/enable_demo.py disable
+# .PHONY: demo-off
+# demo-off: ## Deshabilitar modo demo
+# 	@echo "🛡️ Deshabilitando modo demo..."
+# 	@echo "⏳ Asegurando que DynamoDB local esté corriendo..."
+# 	@poetry run python scripts/enable_demo.py disable
+
+.PHONY: demo-start
+demo-start-local: ## 🎭 Iniciar demo vía API HTTP
+	curl -X POST "http://localhost:8080/demo/start" \
+		-H "Content-Type: application/json" \
+		-d '{"pcap_file": "/app/models/data/small/Malware/Zeus.pcap"}' | jq .
+
+.PHONY: demo-stop
+demo-stop-local: ## 🛡️ Detener demo vía API HTTP
+	curl -X POST "http://localhost:8080/demo/stop" \
+		-H "Content-Type: application/json" | jq .
 
 # =============================================================================
 # COMANDOS DE DEMO VÍA API HTTP

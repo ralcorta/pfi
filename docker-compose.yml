@@ -36,19 +36,20 @@ services:
   #       "tcp",
   #     ]
 
-  sensor-app-mock:
+  sensor-app-local:
     build: .
     container_name: sensor-app-local
     depends_on:
       - dynamodb-local
     environment:
-      - AWS_ENDPOINT_URL=http://localhost:8000
+      - AWS_ENDPOINT_URL=http://dynamodb-local:8000
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
-    # ports: # No necesario con network_mode: host
-    #   - "4789:4789/udp" # Exponer puerto UDP para testing
-    network_mode: host
+    ports:
+      - "8080:8080" # Exponer puerto HTTP
+      - "4789:4789/udp" # Exponer puerto UDP para testing
+    # network_mode: host
     volumes:
       - .:/app
     working_dir: /app
