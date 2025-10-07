@@ -19,7 +19,7 @@
         :disabled="loading"
         class="btn btn-primary"
       >
-        🔄 {{ loading ? 'Cargando...' : 'Actualizar' }}
+        {{ loading ? 'Cargando...' : 'Actualizar' }}
       </button>
       
       <button 
@@ -27,7 +27,7 @@
         :disabled="loading"
         class="btn btn-success"
       >
-        🚀 Iniciar Demo
+        Iniciar Demo
       </button>
       
       <button 
@@ -35,14 +35,14 @@
         :disabled="loading"
         class="btn btn-danger"
       >
-        ⏹️ Detener Demo
+        Detener Demo
       </button>
       
       <button 
         @click="toggleAutoRefresh" 
         :class="autoRefresh ? 'btn btn-secondary' : 'btn btn-primary'"
       >
-        {{ autoRefresh ? '⏸️ Pausar Auto-refresh' : '▶️ Auto-refresh' }}
+        {{ autoRefresh ? 'Pausar Auto-refresh' : 'Auto-refresh' }}
       </button>
     </div>
 
@@ -114,10 +114,10 @@ export default {
       try {
         const response = await malwareAPI.getDetections()
         detections.value = response.detections || []
-        showNotification(`✅ ${detections.value.length} detecciones cargadas`, 'success')
+        showNotification(`${detections.value.length} detecciones cargadas`, 'success')
       } catch (err) {
         error.value = err.message
-        showNotification(`❌ Error: ${err.message}`, 'error')
+        showNotification(`Error: ${err.message}`, 'error')
       } finally {
         loading.value = false
       }
@@ -135,11 +135,11 @@ export default {
       loading.value = true
       try {
         await malwareAPI.startDemo()
-        showNotification('🚀 Demo iniciado correctamente', 'success')
+        showNotification('Demo iniciado correctamente', 'success')
         // Recargar detecciones después de un breve delay
         setTimeout(loadDetections, 2000)
       } catch (err) {
-        showNotification(`❌ Error iniciando demo: ${err.message}`, 'error')
+        showNotification(`Error iniciando demo: ${err.message}`, 'error')
       } finally {
         loading.value = false
       }
@@ -149,9 +149,9 @@ export default {
       loading.value = true
       try {
         await malwareAPI.stopDemo()
-        showNotification('⏹️ Demo detenido correctamente', 'success')
+        showNotification('Demo detenido correctamente', 'success')
       } catch (err) {
-        showNotification(`❌ Error deteniendo demo: ${err.message}`, 'error')
+        showNotification(`Error deteniendo demo: ${err.message}`, 'error')
       } finally {
         loading.value = false
       }
@@ -165,13 +165,13 @@ export default {
           loadDetections()
           loadHealth()
         }, 5000) // Actualizar cada 5 segundos
-        showNotification('▶️ Auto-refresh activado (cada 5s)', 'info')
+        showNotification('Auto-refresh activado (cada 5s)', 'info')
       } else {
         if (refreshInterval.value) {
           clearInterval(refreshInterval.value)
           refreshInterval.value = null
         }
-        showNotification('⏸️ Auto-refresh pausado', 'info')
+        showNotification('Auto-refresh pausado', 'info')
       }
     }
 

@@ -33,7 +33,24 @@ class UdpServer:
     def clear_screen(self):
         """Limpia la pantalla de la consola"""
         import os
-        os.system('clear' if os.name == 'posix' else 'cls')
+        import subprocess
+        
+        try:
+            # Método 1: Usar os.system
+            if os.name == 'posix':  # Linux/Mac
+                os.system('clear')
+            else:  # Windows
+                os.system('cls')
+        except:
+            try:
+                # Método 2: Usar subprocess como fallback
+                if os.name == 'posix':
+                    subprocess.run(['clear'], check=True)
+                else:
+                    subprocess.run(['cls'], shell=True, check=True)
+            except:
+                # Método 3: Imprimir líneas en blanco como último recurso
+                print('\n' * 50)
     
     def update_console(self):
         """Actualiza la consola con información en tiempo real"""

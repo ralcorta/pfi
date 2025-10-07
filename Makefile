@@ -374,6 +374,7 @@ test-api: ## Probar endpoints de la API HTTP
 init-app: ## Inicializar aplicación completa (DynamoDB + registros base)
 	@echo "🚀 Inicializando aplicación completa..."
 	@poetry run python scripts/init_app.py
+	@poetry run python scripts/init_local_dynamo.py
 
 .PHONY: init-aws-app
 init-aws-app: ## Inicializar aplicación en AWS (registros base en DynamoDB)
@@ -690,6 +691,17 @@ test-http-only-aws: ## Probar configuración HTTP-only en AWS (requiere ALB DNS)
 	fi
 	@echo "🌐 Probando en: http://$(ALB_DNS)"
 	@python3 scripts/test_http_only.py http://$(ALB_DNS)
+
+
+##
+.PHONY: init-app-local
+init-all-local: ## Inicializar aplicación local
+	@echo "🚀 Inicializando aplicación local..."
+	@docker compose up -d dynamodb-local
+	@sleep 2
+	@make init-app
+	@docker compose up sensor-app-local
+
 
 # Comando por defecto
 .DEFAULT_GOAL := help

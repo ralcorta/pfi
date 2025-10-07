@@ -1,11 +1,6 @@
 <template>
   <div class="stats-container">
     <div class="stat-card">
-      <h3>Total Detecciones</h3>
-      <div class="number">{{ stats.total }}</div>
-    </div>
-    
-    <div class="stat-card">
       <h3>Total Paquetes</h3>
       <div class="number">{{ stats.totalPackets }}</div>
     </div>
