@@ -7,9 +7,6 @@ module "analyzer" {
   allowed_cidrs           = ["172.31.0.0/16"]
   container_image         = var.container_image
   sagemaker_endpoint_name = var.sagemaker_endpoint
-  min_capacity            = 1
-  max_capacity            = 5
-  cpu_target_percent      = 80
   tags                    = var.tags
 }
 
@@ -21,7 +18,5 @@ module "analyzer" {
 #   tags                 = var.tags
 # }
 
-output "nlb_dns" { value = module.analyzer.nlb_dns }
-output "nlb_arn" { value = module.analyzer.nlb_arn }
-output "alb_dns" { value = module.analyzer.alb_dns }
+output "ecr_repository_url" { value = module.analyzer.ecr_repository_url }
 # output "client_vpc_id" { value = module.client.client_vpc_id }

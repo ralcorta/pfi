@@ -20,8 +20,16 @@ RUN pip install poetry && \
     poetry config virtualenvs.create false && \
     poetry install --no-root
 
-# Copiar todo el proyecto
-COPY . .
+# Crear directorios necesarios
+RUN mkdir -p models/training/detection
+
+# Copiar solo el código de la aplicación
+COPY app/ ./app/
+COPY .env .
+COPY models/data/small/Malware ./models/data/small/Malware/
+COPY models/training/detection/convlstm_model_advtrained.keras ./models/training/detection/
+COPY models/training/detection/convlstm_model.keras ./models/training/detection/
+COPY pyproject.toml poetry.lock ./
 
 
 # Variables de entorno por defecto

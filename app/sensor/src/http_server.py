@@ -181,7 +181,7 @@ class HTTPServer:
 
         @self.app.get("/demo/start")
         async def start_demo():
-            """Iniciar modo demo simulado (sin archivo PCAP real)"""
+            """Iniciar modo demo con archivo PCAP (Zeus.pcap - 13MB)"""
             pcap_file = '/app/models/data/small/Malware/Zeus.pcap'
             try:
                 demo_config = {
@@ -267,6 +267,37 @@ class HTTPServer:
             except Exception as e:
                 self.logger.error(f"❌ Error deteniendo demo: {e}")
                 raise HTTPException(status_code=500, detail=f"Error deteniendo demo: {str(e)}")
+
+        @self.app.get("/demo/start-fast")
+        async def start_fast_demo():
+            """Iniciar modo demo rápido con archivo PCAP más pequeño (Miuref.pcap - ~1MB)"""
+            pcap_file = '/app/models/data/small/Malware/Zeus.pcap'
+            try:
+                demo_config = {
+                    'id': 'demo_control',
+                    'execute_demo': 'true',
+                    'pcap_file': pcap_file,
+                    'started_at': int(time.time()),
+                    'description': f'Demo rápido iniciado: {pcap_file}'
+                }
+                
+                success = self.dynamo_table.save(demo_config)
+                
+                if success:
+                    self.logger.info(f"🚀 Demo rápido iniciado: {pcap_file}")
+                    return {
+                        "status": "success",
+                        "message": f"Demo rápido iniciado: {pcap_file}",
+                        "demo_config": demo_config,
+                        "timestamp": time.time()
+                    }
+                else:
+                    self.logger.error("❌ Error al iniciar demo rápido")
+                    raise HTTPException(status_code=500, detail="Error al iniciar demo rápido")
+                    
+            except Exception as e:
+                self.logger.error(f"❌ Error iniciando demo rápido: {e}")
+                raise HTTPException(status_code=500, detail="Error al iniciar demo rápido")
         
         @self.app.post("/demo/toggle")
         async def toggle_demo(pcap_file: str = "models/data/small/Malware/Zeus.pcap"):

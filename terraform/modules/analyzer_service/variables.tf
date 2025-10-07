@@ -11,20 +11,6 @@ variable "sagemaker_endpoint_name" {
   type = string
 }
 
-variable "min_capacity" {
-  type    = number
-  default = 1
-}
-
-variable "max_capacity" {
-  type    = number
-  default = 5
-}
-
-variable "cpu_target_percent" {
-  type    = number
-  default = 80
-}
 
 variable "tags" {
   type    = map(string)

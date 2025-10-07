@@ -669,5 +669,27 @@ docs-status: ## 📊 Verificar estado de la documentación
 		echo "💡 Ejecuta 'make generate-docs' para crear la documentación"; \
 	fi
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Comandos de Prueba
+# ──────────────────────────────────────────────────────────────────────────────
+
+.PHONY: test-http-only
+test-http-only: ## Probar que solo el servidor HTTP esté funcionando (sin UDP 4789)
+	@echo "🧪 Probando configuración HTTP-only del sensor..."
+	@echo "💡 Asegúrate de que el servidor esté ejecutándose localmente"
+	@echo ""
+	@python3 scripts/test_http_only.py
+
+.PHONY: test-http-only-aws
+test-http-only-aws: ## Probar configuración HTTP-only en AWS (requiere ALB DNS)
+	@echo "🧪 Probando configuración HTTP-only en AWS..."
+	@if [ -z "$(ALB_DNS)" ]; then \
+		echo "❌ Error: Debes proporcionar ALB_DNS"; \
+		echo "💡 Uso: make test-http-only-aws ALB_DNS=tu-alb-dns-name"; \
+		exit 1; \
+	fi
+	@echo "🌐 Probando en: http://$(ALB_DNS)"
+	@python3 scripts/test_http_only.py http://$(ALB_DNS)
+
 # Comando por defecto
 .DEFAULT_GOAL := help

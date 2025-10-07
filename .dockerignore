@@ -54,7 +54,7 @@ LICENSE
 models/*
 
 # Keep only small test data
-!models/data/small/Malware/Zeus.pcap
+!models/data/small/Malware/*.pcap
 !models/training/detection/convlstm_model.keras
 !models/training/detection/convlstm_model_advtrained.keras
 !*.keras

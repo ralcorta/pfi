@@ -1,6 +1,6 @@
 import logging
+import os
 import socket
-import threading
 import time
 from scapy.all import IP, TCP
 
@@ -11,11 +11,13 @@ from app.sensor.src.utils.dynamo_client import DynamoClient
 class UdpServer:
     """Servidor UDP para recibir tráfico del VPC Mirroring en puerto 4789"""
     
-    def __init__(self, port=4789, model_path=None):
+    def __init__(self, port=4789, model_path=None, default_pcap=None):
         self.port = port
         self.running = False
         self.packet_count = 0
         self.demo_packages = []
+        self.preloaded_pcap = None  # PCAP precargado
+        self.preloaded_pcap_file = None  # Archivo del PCAP precargado
         self.last_result = 0
         self.model_service = ModelService(model_path)
         self.dynamo_table = DynamoClient("demo-pcap-control")
@@ -24,6 +26,7 @@ class UdpServer:
         self.malware_detections = 0
         self.last_update = time.time()
         self.socket = None
+        self.default_pcap = default_pcap or "/app/models/data/small/Malware/Zeus.pcap"
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
@@ -34,23 +37,23 @@ class UdpServer:
     
     def update_console(self):
         """Actualiza la consola con información en tiempo real"""
-        return
-        if Config.ENVIRONMENT == "local":
-            self.clear_screen()
-            print("=" * 80)
-            print("🛡️  SERVIDOR UDP SENSOR DE TRÁFICO CON IA")
-            print("=" * 80)
-            print(f"📡 Puerto: {self.port}")
-            print(f"🎯 Estado: {'DEMO' if self.demo_mode else 'LIVE'}")
-            print("-" * 80)
-            print(f"📦 Paquetes procesados: {self.packet_count}")
-            print(f"🚨 Detecciones de malware: {self.malware_detections}")
-            print(f"🔍 Resultado del último batch procesado: {self.last_result:.2f}")
-            print("-" * 80)
-            print(f"📋 Último paquete: {self.current_packet_info}")
-            print("-" * 80)
-            print("Presiona Ctrl+C para detener")
-            print("=" * 80)
+
+        # if Config.ENVIRONMENT == "local":
+        self.clear_screen()
+        print("=" * 80)
+        print("🛡️  SERVIDOR UDP SENSOR DE TRÁFICO CON IA")
+        print("=" * 80)
+        print(f"📡 Puerto: {self.port}")
+        print(f"🎯 Estado: {'DEMO' if self.demo_mode else 'LIVE'}")
+        print("-" * 80)
+        print(f"📦 Paquetes procesados: {self.packet_count}")
+        print(f"🚨 Detecciones de malware: {self.malware_detections}")
+        print(f"🔍 Resultado del último batch procesado: {self.last_result:.2f}")
+        print("-" * 80)
+        print(f"📋 Último paquete: {self.current_packet_info}")
+        print("-" * 80)
+        print("Presiona Ctrl+C para detener")
+        print("=" * 80)
     
     def save_malware_detection(self, source_ip, src_port, dst_port):
         """Guarda detección de malware en DynamoDB"""
@@ -102,64 +105,65 @@ class UdpServer:
             self.logger.error(f"Error obteniendo malware: {e}")
             return []
     
-    def extract_packages_from_pcap(self, file):
-        """Extrae paquetes de un archivo PCAP para modo demo"""
-        from scapy.all import rdpcap
-        packets = rdpcap(file)
-        return packets
-    
-    def demo_thread(self):
-        """Thread para manejar el modo demo"""
-        while self.running:
-            try:
-                data = self.dynamo_table.get({"id": "demo_control"})
-            except Exception as e:
-                self.logger.error(f"❌ Error obteniendo demo_control: {e}")
-                return
+    def preload_pcap(self, file_path=None):
+        """Precarga un archivo PCAP al inicio para evitar demoras en demo"""
+        if file_path is None:
+            file_path = self.default_pcap
             
-            if data and data.get("execute_demo") == "true":
-                self.demo_mode = True
-                self.current_packet_info = "🎭 Iniciando modo demo..."
-                self.update_console()
-                
-                pcap_file = data.get("pcap_file", "")
-                if not pcap_file:
-                    pcap_file = "simulated_demo"
+        if not os.path.exists(file_path):
+            self.logger.warning(f"⚠️ Archivo PCAP no encontrado: {file_path}")
+            return False
+            
+        try:
+            self.logger.info(f"🔄 Precargando PCAP por defecto: {file_path}")
+            self.current_packet_info = "🔄 Precargando PCAP..."
+            self.update_console()
+            
+            self.preloaded_pcap = self.extract_packages_from_pcap(file_path)
+            self.preloaded_pcap_file = file_path
+            
+            self.logger.info(f"✅ PCAP precargado exitosamente: {len(self.preloaded_pcap)} paquetes")
+            self.current_packet_info = f"✅ PCAP precargado: {len(self.preloaded_pcap)} paquetes"
+            self.update_console()
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error precargando PCAP: {e}")
+            self.current_packet_info = f"❌ Error precargando PCAP: {str(e)}"
+            self.update_console()
+            return False
 
-                # Si es un demo simulado, no intentar procesar archivos PCAP reales
-                if pcap_file == "simulated_demo":
-                    self.demo_packages = []  # Lista vacía para demo simulado
-                    self.logger.info("🎭 Demo simulado iniciado - no se procesarán archivos PCAP reales")
-                else:
-                    try:
-                        self.demo_packages = self.extract_packages_from_pcap(pcap_file)
-                    except Exception as e:
-                        self.logger.error(f"❌ Error procesando archivo PCAP {pcap_file}: {e}")
-                        self.demo_mode = False
-                        self.current_packet_info = f"❌ Error en demo: {str(e)}"
-                        self.update_console()
-                        # Desactivar el demo en caso de error
-                        self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
-                        continue
-                # No desactivar el demo automáticamente - que el usuario lo controle
-                # self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
-                
-                self.current_packet_info = f"🎭 Procesando paquetes del demo..."
-                self.update_console()
-                
-                for packet in self.demo_packages:
-                    if not self.demo_packages:
-                        break
-                    packet = self.demo_packages.pop(0)
-                    self.process_packet(packet)
-                
-                self.demo_mode = False
-                self.current_packet_info = "✅ Demo completado - Volviendo a modo LIVE"
-                self.update_console()
-                
-                # Desactivar el demo en DynamoDB cuando termine
-                self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
-            time.sleep(1)
+    def reload_pcap(self, file_path=None):
+        """Recarga un nuevo PCAP (útil para cambiar el archivo por defecto)"""
+        if file_path is None:
+            file_path = self.default_pcap
+            
+        self.logger.info(f"🔄 Recargando PCAP: {file_path}")
+        return self.preload_pcap(file_path)
+
+    def extract_packages_from_pcap(self, file):
+        """Extrae paquetes de un archivo PCAP para modo demo con optimizaciones"""
+        from scapy.all import rdpcap
+        import os
+        
+        # Verificar tamaño del archivo
+        file_size = os.path.getsize(file)
+        self.logger.info(f"📁 Cargando archivo PCAP: {file} ({file_size / (1024*1024):.1f} MB)")
+        
+        # Mostrar progreso para archivos grandes
+        if file_size > 5 * 1024 * 1024:  # > 5MB
+            self.logger.info("⏳ Cargando archivo PCAP grande, esto puede tomar unos segundos...")
+            self.current_packet_info = "⏳ Cargando archivo PCAP..."
+            self.update_console()
+        
+        try:
+            self.logger.info(f"Leyendo pcap {file} de {file_size} bytes de disco")
+            packets = rdpcap(file)
+            self.logger.info(f"✅ PCAP cargado: {len(packets)} paquetes extraídos")
+            return packets
+        except Exception as e:
+            self.logger.error(f"❌ Error cargando PCAP: {e}")
+            raise
     
     def parse_mirrored_packet(self, data):
         """Parsea un paquete del VPC Traffic Mirroring"""
@@ -234,45 +238,77 @@ class UdpServer:
             self.process_packet(packet)
     
     def start_server(self):
-        """Inicia el servidor UDP"""
+        """Inicia el servidor en modo demo (solo HTTP, sin UDP)"""
         self.model_service.load_model()
         self.running = True
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
+        self.logger.info("🎯 Iniciando servidor en modo demo (solo HTTP, sin UDP)")
+        self.update_console()
+        
+        # Precargar PCAP por defecto al inicio
+        self.logger.info("🔄 Precargando PCAP por defecto para demos rápidas...")
+        self.preload_pcap()
+        
+        # Mantener el proceso vivo y verificar demo directamente
         try:
-            self.socket.bind(('0.0.0.0', self.port))
-            self.logger.info(f"🎯 Servidor UDP iniciado en puerto {self.port}")
-            
-            self.update_console()
-            
-            threading.Thread(target=self.demo_thread, daemon=True).start()
-            
             while self.running:
+                # Verificar si hay demo activo (lógica del demo_thread integrada)
                 try:
-                    self.socket.setblocking(True)
-                    data, addr = self.socket.recvfrom(65536)  # Tamaño máximo de paquete
-                    
-                    threading.Thread(
-                        target=self.handle_udp_packet, 
-                        args=(data, addr), 
-                        daemon=True
-                    ).start()
-                    
-                except socket.timeout:
-                    continue
+                    data = self.dynamo_table.get({"id": "demo_control"})
                 except Exception as e:
-                    if self.running:
-                        self.logger.error(f"Error recibiendo paquete UDP: {e}")
-                        
-        except Exception as e:
-            self.logger.error(f"❌ Error iniciando servidor UDP: {e}")
+                    self.logger.error(f"❌ Error obteniendo demo_control: {e}")
+                    time.sleep(1)
+                    continue
+                
+                if data and data.get("execute_demo") == "true":
+                    self.demo_mode = True
+                    self.current_packet_info = "🎭 Iniciando modo demo..."
+                    self.update_console()
+                    
+                    pcap_file = data.get("pcap_file", "")
+
+                    try:
+                        # Usar PCAP precargado si es el mismo archivo o si no se especifica archivo
+                        if (not pcap_file or pcap_file == self.preloaded_pcap_file) and self.preloaded_pcap:
+                            self.logger.info(f"🚀 Usando PCAP precargado: {self.preloaded_pcap_file}")
+                            self.demo_packages = self.preloaded_pcap # .copy()  # Copiar para no modificar el original
+                        else:
+                            # Cargar PCAP específico si es diferente al precargado
+                            self.logger.info(f"📁 Cargando PCAP específico: {pcap_file}")
+                            self.demo_packages = self.extract_packages_from_pcap(pcap_file)
+                    except Exception as e:
+                        self.logger.error(f"❌ Error procesando archivo PCAP {pcap_file}: {e}")
+                        self.demo_mode = False
+                        self.current_packet_info = f"❌ Error en demo: {str(e)}"
+                        self.update_console()
+                        # Desactivar el demo en caso de error
+                        self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
+                        time.sleep(1)
+                        continue
+                    
+                    self.current_packet_info = f"🎭 Procesando {len(self.demo_packages)} paquetes del demo..."
+                    self.update_console()
+                    
+                    for packet in self.demo_packages:
+                        self.process_packet(packet)
+                    
+                    self.demo_mode = False
+                    self.current_packet_info = "✅ Demo completado - Volviendo a modo LIVE"
+                    self.update_console()
+                    
+                    # Desactivar el demo en DynamoDB cuando termine
+                    self.dynamo_table.save({"id": "demo_control", "execute_demo": "false"})
+                
+                time.sleep(1)
+                
+        except KeyboardInterrupt:
+            self.logger.info("🛑 Deteniendo servidor por interrupción del usuario")
         finally:
             self.stop_server()
     
     def stop_server(self):
         """Detiene el servidor"""
         self.running = False
-        if self.socket:
+        if hasattr(self, 'socket') and self.socket:
             self.socket.close()
-        self.logger.info(f"🛑 Servidor UDP detenido. Total de paquetes procesados: {self.packet_count}")
+        self.logger.info(f"🛑 Servidor detenido. Total de paquetes procesados: {self.packet_count}")
