@@ -29,7 +29,7 @@
         <thead>
           <tr>
             <th>IP Origen</th>
-            <th>Estado</th>
+            <!-- <th>Estado</th> -->
             <th>Paquetes</th>
             <th>Puertos</th>
             <th>Primera Detección</th>
@@ -42,11 +42,11 @@
             <td>
               <span class="ip-address">{{ detection.source_ip }}</span>
             </td>
-            <td>
+            <!-- <td>
               <span class="status-badge" :class="getStatusClass(detection)">
                 {{ getStatusText(detection) }}
               </span>
-            </td>
+            </td> -->
             <td>
               <strong>{{ detection.packet_count }}</strong>
             </td>
@@ -75,7 +75,7 @@
                 @click="$emit('view-details', detection)" 
                 class="btn btn-secondary btn-sm"
               >
-                👁️ Ver
+                Ver
               </button>
             </td>
           </tr>

@@ -1,22 +1,22 @@
 <template>
   <div class="stats-container">
     <div class="stat-card">
-      <h3>🔍 Total Detecciones</h3>
+      <h3>Total Detecciones</h3>
       <div class="number">{{ stats.total }}</div>
     </div>
     
     <div class="stat-card">
-      <h3>📦 Total Paquetes</h3>
+      <h3>Total Paquetes</h3>
       <div class="number">{{ stats.totalPackets }}</div>
     </div>
     
     <div class="stat-card">
-      <h3>🌐 IPs </h3>
+      <h3>IPs </h3>
       <div class="number">{{ stats.uniqueIPs }}</div>
     </div>
     
     <div class="stat-card">
-      <h3>⚡ Estado API</h3>
+      <h3>Estado API</h3>
       <div class="api-status" :class="apiStatusClass">
         {{ apiStatusText }}
       </div>
