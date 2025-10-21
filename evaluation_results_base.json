@@ -1,0 +1,67 @@
+{
+  "timestamp": "2025-10-21T09:54:15.601420",
+  "tag": "base",
+  "model_name": "convlstm_model.keras",
+  "basic_metrics": {
+    "loss": 0.30262869596481323,
+    "accuracy": 0.990328848361969
+  },
+  "ransomware_specific_metrics": {
+    "precision": 0.99812734082397,
+    "recall": 0.7125668449197861,
+    "f1_score": 0.8315132605304212,
+    "support": 1496
+  },
+  "confusion_matrix": {
+    "true_positives": 1066,
+    "true_negatives": 43171,
+    "false_positives": 2,
+    "false_negatives": 430,
+    "sensitivity": 0.7125668449197861,
+    "specificity": 0.9999536747504227
+  },
+  "roc_auc": 0.9932964793677372,
+  "average_precision": 0.9610341361517182,
+  "classification_report": {
+    "Benigno": {
+      "precision": 0.9901378408752093,
+      "recall": 0.9999536747504227,
+      "f1-score": 0.995021550233941,
+      "support": 43173.0
+    },
+    "Ransomware/Malware": {
+      "precision": 0.99812734082397,
+      "recall": 0.7125668449197861,
+      "f1-score": 0.8315132605304212,
+      "support": 1496.0
+    },
+    "accuracy": 0.9903288634175826,
+    "macro avg": {
+      "precision": 0.9941325908495897,
+      "recall": 0.8562602598351043,
+      "f1-score": 0.9132674053821811,
+      "support": 44669.0
+    },
+    "weighted avg": {
+      "precision": 0.9904054155225789,
+      "recall": 0.9903288634175826,
+      "f1-score": 0.9895455288008114,
+      "support": 44669.0
+    }
+  },
+  "feature_names": [
+    "entropy_mean",
+    "entropy_std",
+    "entropy_max",
+    "payload_variance",
+    "null_bytes_mean",
+    "null_bytes_ratio",
+    "packet_size_mean",
+    "packet_size_std",
+    "packet_size_ratio",
+    "unique_src_ports",
+    "unique_dst_ports",
+    "port_diversity",
+    "ransomware_port_usage"
+  ]
+}

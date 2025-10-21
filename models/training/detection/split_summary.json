@@ -1,0 +1,29 @@
+{
+  "n_total": 131934,
+  "train": {
+    "n": 87265,
+    "class_counts": [
+      60865,
+      26400
+    ]
+  },
+  "test": {
+    "n": 44669,
+    "class_counts": [
+      43173,
+      1496
+    ]
+  },
+  "has_ransomware_features": true,
+  "files": {
+    "X_train": "X_train.npy",
+    "X_test": "X_test.npy",
+    "y_train": "y_train.npy",
+    "y_test": "y_test.npy",
+    "X_ransomware_train": "X_ransomware_train.npy",
+    "X_ransomware_test": "X_ransomware_test.npy",
+    "scaler": "ransomware_features_scaler.pkl",
+    "train_idx": "train_idx.npy",
+    "test_idx": "test_idx.npy"
+  }
+}

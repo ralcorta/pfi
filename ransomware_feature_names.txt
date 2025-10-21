@@ -1,0 +1,13 @@
+entropy_mean
+entropy_std
+entropy_max
+payload_variance
+null_bytes_mean
+null_bytes_ratio
+packet_size_mean
+packet_size_std
+packet_size_ratio
+unique_src_ports
+unique_dst_ports
+port_diversity
+ransomware_port_usage
