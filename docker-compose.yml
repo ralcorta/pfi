@@ -1,4 +1,31 @@
 services:
+  sensor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor-app
+    ports:
+      - "8080:8080" # HTTP API
+      - "4789:4789/udp" # VXLAN UDP
+    environment:
+      - AWS_REGION=us-east-1
+      - DDB_TABLE=detections
+      - VXLAN_PORT=4789
+      - HTTP_PORT=8080
+      - WORKERS=4
+      - QUEUE_MAX=20000
+      - WINDOW_SECONDS=3.0
+      - MAX_PKTS_PER_WINDOW=256
+      - LOG_LEVEL=info
+      # For local development
+      - AWS_ENDPOINT_URL=http://dynamodb-local:8000
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    depends_on:
+      - dynamodb-local
+    networks:
+      - sensor-network
+
   dynamodb-local:
     image: amazon/dynamodb-local:latest
     container_name: dynamodb-local
@@ -9,58 +36,9 @@ services:
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
       - AWS_DEFAULT_REGION=us-east-1
+    networks:
+      - sensor-network
 
-  # sensor-app:
-  #   image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/sensor-app:latest
-  #   container_name: sensor-app
-  #   depends_on:
-  #     - dynamodb-local
-  #   environment:
-  #     - AWS_ENDPOINT_URL=http://dynamodb-local:8000
-  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-  #     - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
-  #   network_mode: host
-  #   volumes:
-  #     - .:/app
-  #   working_dir: /app
-  #   privileged: true
-  #   command:
-  #     [
-  #       "python",
-  #       "-m",
-  #       "app.sensor.src.main",
-  #       "--interface",
-  #       "en0",
-  #       "--filter",
-  #       "tcp",
-  #     ]
-
-  sensor-app-local:
-    build: .
-    container_name: sensor-app-local
-    depends_on:
-      - dynamodb-local
-    environment:
-      - AWS_ENDPOINT_URL=http://dynamodb-local:8000
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
-      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
-    ports:
-      - "8080:8080" # Exponer puerto HTTP
-      - "4789:4789/udp" # Exponer puerto UDP para testing
-    # network_mode: host
-    volumes:
-      - .:/app
-    working_dir: /app
-    privileged: true
-    command:
-      [
-        "python",
-        "-m",
-        "app.sensor.src.main",
-        "--udp-port",
-        "4789",
-        "--http-port",
-        "8080",
-      ]
+networks:
+  sensor-network:
+    driver: bridge

@@ -1,45 +1,37 @@
 FROM python:3.11-slim
 
-# Instalar dependencias del sistema
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    tshark \
-    tcpdump \
-    libpcap-dev \
     gcc \
     g++ \
+    libpcap-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Configurar directorio de trabajo
+# Set working directory
 WORKDIR /app
 
-# Copiar archivos de dependencias
+# Copy requirements from project root
 COPY pyproject.toml poetry.lock ./
 
-# Instalar Poetry y dependencias
+# Install Python dependencies
 RUN pip install poetry && \
     poetry config virtualenvs.create false && \
-    poetry install --no-root
+    poetry install --no-dev
 
-# Crear directorios necesarios
-RUN mkdir -p models/training/detection
+# Copy application code from project root
+COPY app/ .
 
-# Copiar solo el código de la aplicación
-COPY app/ ./app/
-COPY .env .
-COPY models/data/small/Malware ./models/data/small/Malware/
-COPY models/training/detection/convlstm_model_advtrained.keras ./models/training/detection/
-COPY models/training/detection/convlstm_model.keras ./models/training/detection/
-COPY pyproject.toml poetry.lock ./
+# Run as root for simplicity (remove for production)
+# RUN useradd -m -u 1000 sensor && \
+#     chown -R sensor:sensor /app
+# USER sensor
 
+# Expose ports
+EXPOSE 8080 4789/udp
 
-# Variables de entorno por defecto
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+# Health check (for local Docker - ECS handles its own health checks)
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:8080/healthz || exit 1
 
-# Variables de entorno para AWS
-# En ECS, las credenciales se obtienen automáticamente del IAM role
-# Solo configuramos la región por defecto
-ENV AWS_DEFAULT_REGION=us-east-1
-
-# Comando por defecto
-CMD ["python", "-m", "app.sensor.src.main", "--udp-port", "4789", "--http-port", "8080"]
+# Run the application
+CMD ["python", "-m", "app.sensor.run"]
