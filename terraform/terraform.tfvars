@@ -1,13 +1,18 @@
-# Configuración para el MVP de tesis
-aws_region   = "us-east-1"
-project_name = "pfi-thesis"
+# region          = "us-east-1"
+# analyzer_vpc_id = "vpc-0fd20052bdbb5fe2a"
+# analyzer_subnets = [
+#   "subnet-0fcbfc1df6f8101bc",
+#   "subnet-03d191b2a8c179274",
+#   "subnet-0c96ddaae3775c9af",
+#   "subnet-0fc6008091521e64e",
+#   "subnet-0aadbde7dcd5c21a9",
+#   "subnet-0c668a650c1bb7b02",
+# ]
+# container_image      = "339712899854.dkr.ecr.us-east-1.amazonaws.com/mirror-sensor:latest"
+# sagemaker_endpoint   = "sm-detector"
+# allowed_ingress_cidr = "0.0.0.0/0"
 
-# VPC Principal (para servicios principales)
-main_vpc_cidr             = "10.0.0.0/16"
-main_public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
-main_private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
-
-# VPC Secundaria (para clientes o testing)
-secondary_vpc_cidr             = "10.1.0.0/16"
-secondary_public_subnet_cidrs  = ["10.1.1.0/24", "10.1.2.0/24"]
-secondary_private_subnet_cidrs = ["10.1.10.0/24", "10.1.20.0/24"]
+tags = {
+  Project = "NetMirror-ML"
+  Env     = "production"
+}

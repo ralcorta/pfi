@@ -1,4 +1,9 @@
 # Variables de configuración general
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
 variable "aws_region" {
   description = "Región de AWS donde se desplegarán los recursos"
   type        = string
