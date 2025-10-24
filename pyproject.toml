@@ -43,7 +43,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 run-model = "run_model:main"
-sensor = "app.sensor.src.main:main"
+sensor = "app.sensor.run:main"
 
 [tool.black]
 line-length = 88
