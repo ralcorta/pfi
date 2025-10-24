@@ -35,6 +35,9 @@ COPY pyproject.toml poetry.lock ./
 # Variables de entorno por defecto
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV INTERFACE=eth0
+ENV FILTER=tcp
+ENV MODEL_PATH=/app/models/training/detection/convlstm_model.keras
 
 # Variables de entorno para AWS
 # En ECS, las credenciales se obtienen automáticamente del IAM role
