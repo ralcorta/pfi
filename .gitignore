@@ -3,6 +3,7 @@ venv/
 .venv/
 env/
 .env/
+!terraform/env/
 
 # Poetry
 poetry.lock
@@ -64,3 +65,15 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+!terraform/terraform.tfvars
+.terraform.lock.hcl
+.terraform/modules/
+graph.dot
+
+# Terraform providers (large files)
+*.terraform-provider-*

@@ -1,1 +1,4 @@
-"""Utility modules for the ransomware detection sensor."""
+"""
+Utilidades del sensor.
+Funciones auxiliares para configuración y manejo de datos.
+"""

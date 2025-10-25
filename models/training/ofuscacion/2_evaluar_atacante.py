@@ -8,8 +8,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-DATA_DIR = Path(".")
-DETECTOR_PATH = DATA_DIR / "models/training/detection/convlstm_model.keras"
+DATA_DIR = Path("../detection")
+DETECTOR_PATH = DATA_DIR / "convlstm_model.keras"
 ATTACKER_PATH = DATA_DIR / "attacker_model.keras"
 
 EPSILON = 0.05   # Debe coincidir con el usado en entrenamiento/evaluación

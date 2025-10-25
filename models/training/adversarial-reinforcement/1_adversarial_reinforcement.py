@@ -14,12 +14,12 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCh
 # ──────────────────────────────────────────────────────────────────────────────
 HERE = Path(__file__).resolve()
 ROOT = HERE.parents[3]                       # carpeta PFI
-DET_DIR = ROOT / "models" / "training" / "detection"
+DET_DIR = Path("../detection")
 
 DETECTOR_IN_PATH  = DET_DIR / "convlstm_model.keras"                 # detector base
 DETECTOR_OUT_PATH = DET_DIR / "convlstm_model_advtrained.keras"      # detector robustecido
 
-ATTACKER_PATH = ROOT / "attacker_model.keras"                        # atacante entrenado
+ATTACKER_PATH = DET_DIR / "attacker_model.keras"                        # atacante entrenado
 
 X_TRAIN = DET_DIR / "X_train.npy"
 Y_TRAIN = DET_DIR / "y_train.npy"
@@ -138,7 +138,7 @@ detector.compile(optimizer=opt, loss=ce, metrics=['accuracy'])
 
 early = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True, min_delta=1e-3)
 plateau = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=1, min_lr=1e-5, verbose=1)
-ckpt = ModelCheckpoint(DETECTOR_OUT_PATH, monitor='val_loss', save_best_only=True, verbose=1)
+ckpt = ModelCheckpoint(str(DETECTOR_OUT_PATH), monitor='val_loss', save_best_only=True, verbose=1)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Entrenamiento

@@ -13,14 +13,17 @@ from datetime import datetime
 # ───────────────────────────────────────────────
 # 1. Cargar modelo y datos
 # ───────────────────────────────────────────────
+SCRIPT_DIR = Path(__file__).parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # Ajustar según la profundidad
+
 print("🔍 Cargando modelo y datos de evaluación...")
 
 # Cargar modelo
-model = load_model('convlstm_model.keras')
+model = load_model(PROJECT_ROOT / 'models' / 'training' / 'detection' / 'convlstm_model.keras')
 
 # Cargar datos de test
-X_test = np.load('X_test.npy')
-y_test = np.load('y_test.npy')
+X_test = np.load(PROJECT_ROOT / 'models' / 'training' / 'detection' / 'X_test.npy')
+y_test = np.load(PROJECT_ROOT / 'models' / 'training' / 'detection' / 'y_test.npy')
 # X_ransomware_test = np.load('X_ransomware_test.npy')  # Comentar esta línea
 
 print(f"📊 Datos de test cargados:")
@@ -120,7 +123,7 @@ print("\n🔍 Analizando importancia de features de ransomware...")
 
 # Cargar nombres de features
 try:
-    with open('ransomware_feature_names.txt', 'r') as f:
+    with open(PROJECT_ROOT / 'models' / 'training' / 'detection' / 'ransomware_feature_names.txt', 'r') as f:
         feature_names = [line.strip() for line in f.readlines()]
     
     print(f"📋 Features analizadas ({len(feature_names)}):")
@@ -161,12 +164,12 @@ results = {
 }
 
 # Guardar resultados en JSON
-with open('../evaluation_results.json', 'w') as f:
+with open(PROJECT_ROOT / 'models' / 'training' / 'evaluation_results.json', 'w') as f:
     json.dump(results, f, indent=2)
 
 # Guardar predicciones
-np.save('../y_pred_proba.npy', y_pred_proba)
-np.save('../y_pred.npy', y_pred)
+np.save(PROJECT_ROOT / 'models' / 'training' / 'y_pred_proba.npy', y_pred_proba)
+np.save(PROJECT_ROOT / 'models' / 'training' / 'y_pred.npy', y_pred)
 
 print("✅ Resultados guardados:")
 print(f"  - evaluation_results.json: Métricas completas")

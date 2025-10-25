@@ -1,0 +1,44 @@
+services:
+  sensor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor-app
+    ports:
+      - "8080:8080" # HTTP API
+      - "4789:4789/udp" # VXLAN UDP
+    environment:
+      - AWS_REGION=us-east-1
+      - AWS_DYNAMO_DB_TABLE_NAME=detections
+      - AWS_DYNAMO_DB_ENDPOINT=http://dynamodb-local:8000
+      - VXLAN_PORT=4789
+      - HTTP_PORT=8080
+      - WORKERS=4
+      - QUEUE_MAX=20000
+      - WINDOW_SECONDS=3.0
+      - MAX_PKTS_PER_WINDOW=256
+      - LOG_LEVEL=info
+      # For local development
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    depends_on:
+      - dynamodb-local
+    networks:
+      - sensor-network
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - AWS_DEFAULT_REGION=us-east-1
+    networks:
+      - sensor-network
+
+networks:
+  sensor-network:
+    driver: bridge
