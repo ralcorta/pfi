@@ -20,6 +20,7 @@ RUN pip install poetry && \
 
 # Copy application code from project root
 COPY app/ app/
+COPY scripts/ scripts/
 
 # Expose ports
 EXPOSE 8080 4789/udp

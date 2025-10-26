@@ -59,7 +59,7 @@ class SensorService:
                     
                     try:
                         vx = VXLAN(data)
-                        inner = bytes(vx.payload)  # Ethernet interno
+                        inner = bytes(vx.payload)
                         vni = int(vx.vni)
                         
                         asyncio.create_task(self._process_packet(inner, vni))
@@ -87,7 +87,7 @@ class SensorService:
         """Procesa un paquete individual."""
         try:
             print(f"📦 Procesando paquete VNI: {vni}, tamaño: {len(inner)}")
-            # TODO: Implementar lógica de procesamiento
+            
         except Exception as e:
             print(f"❌ Error procesando paquete: {e}")
 

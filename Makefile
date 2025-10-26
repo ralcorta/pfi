@@ -78,6 +78,7 @@ setup-aws: ## Configurar AWS CLI
 	@aws sts get-caller-identity >/dev/null 2>&1 || { echo "$(RED)❌ AWS CLI no está configurado. Ejecuta: aws configure$(RESET)"; exit 1; }
 	@echo "$(GREEN)✅ AWS CLI configurado$(RESET)"
 
+
 # =============================================================================
 # 2. PROCESAMIENTO DE DATOS
 # =============================================================================

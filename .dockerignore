@@ -44,7 +44,6 @@ Thumbs.db
 logs/
 backup/
 terraform/
-scripts/
 docker-compose.yml
 dockerfile
 .dockerignore

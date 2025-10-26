@@ -2,7 +2,7 @@ services:
   sensor-app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: sensor-app
     ports:
       - "8080:8080" # HTTP API
@@ -36,6 +36,20 @@ services:
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
       - AWS_DEFAULT_REGION=us-east-1
+    networks:
+      - sensor-network
+
+  traffic-generator:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: traffic-generator
+    command: ["poetry", "run", "python", "scripts/minimal_test.py"]
+    environment:
+      - SENSOR_HOST=sensor-app
+      - SENSOR_PORT=4789
+    depends_on:
+      - sensor-app
     networks:
       - sensor-network
 
