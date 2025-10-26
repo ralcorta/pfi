@@ -1,0 +1,31 @@
+{
+  "epochs_trained": 5,
+  "final": {
+    "loss": 0.5434984564781189,
+    "val_loss": 0.3080645203590393,
+    "accuracy": 0.8584656119346619,
+    "val_accuracy": 0.9971345067024231
+  },
+  "class_counts_train": [
+    60865,
+    26400
+  ],
+  "class_weights": {
+    "0": 0.71687340836277,
+    "1": 1.6527462121212122
+  },
+  "optimizer": "Adam(1e-3, clipnorm=1.0)",
+  "loss": "CategoricalCrossentropy(label_smoothing=0.1)",
+  "callbacks": [
+    "EarlyStopping(p=2)",
+    "ReduceLROnPlateau(f=0.5,p=1)",
+    "ModelCheckpoint(best)",
+    "CSVLogger"
+  ],
+  "input_shape": [
+    20,
+    32,
+    32,
+    1
+  ]
+}

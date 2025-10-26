@@ -88,6 +88,7 @@ class SensorService:
         try:
             print(f"📦 Procesando paquete VNI: {vni}, tamaño: {len(inner)}")
             
+            
         except Exception as e:
             print(f"❌ Error procesando paquete: {e}")
 

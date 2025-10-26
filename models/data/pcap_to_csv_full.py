@@ -60,7 +60,7 @@ def generate_csv(normal_dir, malware_dir, output_csv):
     print(f'\n✅ CSV final guardado en: {output_csv}')
     print(f'🧹 Total de paquetes descartados por payload corto (<{MIN_PAYLOAD_LEN} bytes): {total_discarded}')
 
-if __name__ == '_main_':
+if __name__ == '__main__':
     # Raíz del repo (desde models/data/pcap_to_csv_full.py → PFI/)
     PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 

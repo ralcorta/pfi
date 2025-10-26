@@ -40,7 +40,7 @@ EPOCHS = 12
 LR = 1e-4                 # LR bajo: fine-tuning estable
 ADV_RATIO = 0.7           # % de malware del batch que pasará a adversarial
 EPSILON = 0.05            # igual al usado al evaluar/entrenar el atacante
-TEMP = 3.0                # mismo escalado que en el entrenamiento del atacante
+TEMP = 6.0                # mismo escalado que en el entrenamiento del atacante
 LABEL_SMOOTH = 0.05       # leve smoothing para estabilidad
 USE_MIXUP = False         # dejalo en False para no confundir señales adversariales
 
