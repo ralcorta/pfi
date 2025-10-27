@@ -17,6 +17,8 @@ scipy = "^1.11.0"
 matplotlib = "^3.7.0"
 seaborn = "^0.12.0"
 joblib = "^1.3.0"
+tensorflow = "^2.12.0"
+keras = "^2.12.0"
 
 # Networking / IO / utilidades
 scapy = "^2.5.0"

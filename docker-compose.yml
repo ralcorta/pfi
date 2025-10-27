@@ -21,6 +21,9 @@ services:
       # For local development
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
     depends_on:
       - dynamodb-local
     networks:
@@ -48,6 +51,9 @@ services:
     environment:
       - SENSOR_HOST=sensor-app
       - SENSOR_PORT=4789
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
     depends_on:
       - sensor-app
     networks:
