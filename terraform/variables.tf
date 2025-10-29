@@ -10,6 +10,11 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "account_id" {
+  description = "AWS Account ID"
+  type        = string
+}
+
 variable "project_name" {
   description = "Nombre del proyecto para el tagging de recursos"
   type        = string

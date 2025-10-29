@@ -5,6 +5,7 @@
 aws_region   = "us-east-1"
 project_name = "pfi-sensor"
 environment  = "production"
+account_id   = "339712899854"
 
 # VPC 1 (Analizador)
 vpc_1_cidr                = "10.0.0.0/16"

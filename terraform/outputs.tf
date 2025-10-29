@@ -56,24 +56,14 @@ output "cliente_eni_id" {
 # }
 
 # Outputs para VPC Mirroring
-output "mirror_target_eni_id" {
-  description = "ID del ENI Mirror Target"
-  value       = aws_network_interface.mirror_target.id
-}
-
-output "mirror_target_private_ip" {
-  description = "IP privada del ENI Mirror Target"
-  value       = aws_network_interface.mirror_target.private_ip
-}
-
 output "mirror_target_security_group_id" {
-  description = "ID del Security Group del Mirror Target"
-  value       = aws_security_group.mirror_target.id
+  description = "ID del Security Group del Mirror Target (ECS)"
+  value       = aws_security_group.ecs_mirror.id
 }
 
 output "sensor_security_group_id" {
   description = "ID del Security Group del Sensor"
-  value       = aws_security_group.sensor.id
+  value       = aws_security_group.ecs_mirror.id
 }
 
 # Outputs de resumen
@@ -93,17 +83,19 @@ output "vpc_mirroring_summary" {
       private_subnet_id = aws_subnet.cliente_private_subnet.id
     }
     mirror_target = {
-      eni_id            = aws_network_interface.mirror_target.id
-      private_ip        = aws_network_interface.mirror_target.private_ip
-      security_group_id = aws_security_group.mirror_target.id
+      target_id         = aws_ec2_traffic_mirror_target.analizador_target.id
+      nlb_dns_name      = aws_lb.mirror_nlb.dns_name
+      security_group_id = aws_security_group.ecs_mirror.id
     }
     cliente_mirror = {
       eni_id     = aws_network_interface.cliente_eni.id
-      session_id = "N/A (Traffic Mirror Session disabled)"
+      session_id = aws_ec2_traffic_mirror_session.cliente_mirror.id
       filter_id  = aws_ec2_traffic_mirror_filter.cliente_filter.id
     }
     sensor = {
-      security_group_id = aws_security_group.sensor.id
+      security_group_id = aws_security_group.ecs_mirror.id
+      cluster_name      = aws_ecs_cluster.sensor_cluster.name
+      service_name      = aws_ecs_service.sensor_service.name
     }
   }
 }
@@ -112,9 +104,9 @@ output "vpc_mirroring_summary" {
 output "client_mirror_config" {
   description = "Configuration that clients need for VPC Mirroring"
   value = {
-    target_eni_id = aws_network_interface.mirror_target.id
-    target_ip     = aws_network_interface.mirror_target.private_ip
-    instructions  = "Los clientes deben configurar VPC Mirror Session apuntando a este ENI"
+    target_id    = aws_ec2_traffic_mirror_target.analizador_target.id
+    nlb_dns_name = aws_lb.mirror_nlb.dns_name
+    instructions = "Los clientes deben configurar VPC Mirror Session apuntando a este NLB Target"
   }
 }
 
@@ -190,6 +182,25 @@ output "deployment_instructions" {
     ecs_cluster      = aws_ecs_cluster.sensor_cluster.name
     aws_academy_note = "Usando solo LabRole - no se crean permisos adicionales"
   }
+}
+
+# ========================================
+# OUTPUTS PARA TRAFFIC MIRRORING CON NLB
+# ========================================
+
+output "mirror_nlb_dns" {
+  description = "DNS name del NLB para Traffic Mirroring"
+  value       = aws_lb.mirror_nlb.dns_name
+}
+
+output "mirror_target_id" {
+  description = "ID del Traffic Mirror Target"
+  value       = aws_ec2_traffic_mirror_target.analizador_target.id
+}
+
+output "vxlan_target_group_arn" {
+  description = "ARN del Target Group VXLAN UDP 4789"
+  value       = aws_lb_target_group.vxlan_tg.arn
 }
 
 # ========================================
