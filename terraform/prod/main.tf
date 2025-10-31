@@ -148,6 +148,15 @@ resource "aws_security_group" "ecs_mirror" {
     description = "Todo UDP desde cualquier origen (DEBUGGING - muy permisivo)"
   }
 
+  # Permitir trafico desde VPC Cliente (para peering y Traffic Mirroring)
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [aws_vpc.vpc_cliente.cidr_block]
+    description = "Todo trafico desde VPC Cliente (para Traffic Mirroring via peering)"
+  }
+
   # HTTPS interno para llegar a los Interface Endpoints (ECR/Logs)
   ingress {
     from_port   = 443
@@ -642,6 +651,15 @@ resource "aws_security_group" "cliente_instances" {
     description = "HTTPS"
   }
 
+  # Permitir trafico desde VPC Analizador (para peering)
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [aws_vpc.vpc_analizador.cidr_block]
+    description = "Todo trafico desde VPC Analizador (para Traffic Mirroring)"
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -706,96 +724,18 @@ resource "aws_instance" "cliente_instance" {
 
   user_data = <<-EOF
               #!/bin/bash
-              # Traffic generator script - v2
+              # Instalar solo Python y requests para scripts manuales
               set -xe
               yum update -y || true
-              yum install -y iperf3 tcpreplay curl bind-utils ntpdate || true
-              cat >/usr/local/bin/gen_traffic.sh <<'EOS'
-              #!/bin/bash
-              # Generar tráfico TCP y UDP variado - intensivo CON TRÁFICO INTRA-VPC
-              PRIVATE_IP=$(hostname -I | awk '{print $1}')
-              VPC_CLIENTE_CIDR="10.1.0.0/16"
-              NLB_DNS="pfi-sensor-mirror-nlb-8e5efd2255186816.elb.us-east-1.amazonaws.com"
+              yum install -y python3 python3-pip nc bind-utils || true
+              pip3 install --upgrade pip requests || true
               
-              echo "🚀 Iniciando generador de tráfico desde IP: $PRIVATE_IP"
-              echo "📍 VPC Cliente CIDR: $VPC_CLIENTE_CIDR"
-              echo "📍 NLB Target: $NLB_DNS"
+              # Crear directorio para scripts
+              mkdir -p /home/ec2-user/scripts
+              chown ec2-user:ec2-user /home/ec2-user/scripts
               
-              # Resolver IP del NLB (puede fallar, pero intentamos)
-              NLB_IP=$(dig +short $NLB_DNS 2>/dev/null | head -1 || echo "")
-              
-              # Función para generar tráfico INTERNET (original)
-              gen_traffic_internet() {
-                while true; do
-                  curl -s http://example.org >/dev/null 2>&1
-                  curl -s http://httpbin.org/get >/dev/null 2>&1
-                  curl -s https://example.org >/dev/null 2>&1
-                  dig @8.8.8.8 example.org +short >/dev/null 2>&1
-                  sleep 0.5
-                done
-              }
-              
-              # Función para generar tráfico INTRA-VPC (crucial para Traffic Mirroring)
-              gen_traffic_intravpc() {
-                while true; do
-                  # Tráfico hacia otras IPs en la VPC cliente (simular comunicación entre hosts)
-                  for target_ip in 10.1.1.1 10.1.1.2 10.1.1.10 10.1.1.50; do
-                    # TCP hacia diferentes puertos
-                    timeout 0.5 bash -c "echo > /dev/tcp/$target_ip/80" 2>/dev/null || true
-                    timeout 0.5 bash -c "echo > /dev/tcp/$target_ip/443" 2>/dev/null || true
-                    timeout 0.5 bash -c "echo > /dev/tcp/$target_ip/8080" 2>/dev/null || true
-                    # UDP (usando dig hacia DNS interno)
-                    dig @$target_ip example.test +short >/dev/null 2>&1 || true
-                  done
-                  
-                  # Tráfico hacia el NLB del analizador (inter-VPC pero debería capturarse)
-                  if [ -n "$NLB_IP" ]; then
-                    timeout 1 bash -c "echo > /dev/tcp/$NLB_IP/4789" 2>/dev/null || true
-                    timeout 1 bash -c "echo > /dev/tcp/$NLB_IP/8080" 2>/dev/null || true
-                  fi
-                  
-                  # Tráfico hacia el propio gateway de la VPC
-                  timeout 0.5 bash -c "echo > /dev/tcp/10.1.1.1/80" 2>/dev/null || true
-                  
-                  sleep 0.2
-                done
-              }
-              
-              # Función para generar tráfico UDP intenso (importante para mirroring)
-              gen_traffic_udp() {
-                while true; do
-                  # UDP hacia IPs en la VPC
-                  for target_ip in 10.1.1.1 10.1.1.10; do
-                    # Simular DNS queries
-                    dig @$target_ip test.local +short >/dev/null 2>&1 || true
-                    # UDP hacia puerto 4789 (VXLAN)
-                    echo "test" | timeout 0.3 nc -u -w1 $target_ip 4789 2>/dev/null || true
-                  done
-                  
-                  # UDP hacia NLB si tenemos IP
-                  if [ -n "$NLB_IP" ]; then
-                    echo "test" | timeout 0.3 nc -u -w1 $NLB_IP 4789 2>/dev/null || true
-                  fi
-                  
-                  sleep 0.3
-                done
-              }
-              
-              # Lanzar procesos
-              gen_traffic_internet &
-              gen_traffic_intravpc &
-              gen_traffic_udp &
-              
-              # NTP periódico (puede generar tráfico UDP)
-              while true; do
-                ntpdate -q pool.ntp.org >/dev/null 2>&1 || true
-                sleep 10
-              done
-              EOS
-              chmod +x /usr/local/bin/gen_traffic.sh
-              nohup /usr/local/bin/gen_traffic.sh >/var/log/gen_traffic.log 2>&1 &
-              # Log inicio
-              echo "$(date): Traffic generator started" >> /var/log/gen_traffic.log
+              # Log de inicio
+              echo "$(date): Python y requests instalados. Listo para ejecutar scripts." >> /var/log/user_data.log
               EOF
 
   tags = {
@@ -808,16 +748,130 @@ resource "aws_instance" "cliente_instance" {
 }
 
 ############################################
-# Traffic Mirroring (Target = NLB)
+# Transit Gateway (conecta VPCs para Traffic Mirroring)
 ############################################
+resource "aws_ec2_transit_gateway" "main" {
+  description = "Transit Gateway para conectar VPC Cliente y Analizador"
+
+  default_route_table_association = "enable"
+  default_route_table_propagation = "enable"
+
+  dns_support      = "enable"
+  vpn_ecmp_support = "enable"
+
+  tags = {
+    Name        = "${var.project_name}-transit-gateway"
+    Environment = var.environment
+    Project     = var.project_name
+    Purpose     = "Traffic-Mirroring-Connectivity"
+  }
+}
+
+# Attachment VPC Cliente al Transit Gateway
+resource "aws_ec2_transit_gateway_vpc_attachment" "cliente" {
+  subnet_ids         = [aws_subnet.cliente_public_subnet.id]
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
+  vpc_id             = aws_vpc.vpc_cliente.id
+
+  tags = {
+    Name        = "${var.project_name}-tgw-attachment-cliente"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Attachment VPC Analizador al Transit Gateway
+resource "aws_ec2_transit_gateway_vpc_attachment" "analizador" {
+  subnet_ids = [
+    aws_subnet.analizador_public_subnet.id,
+    aws_subnet.analizador_private_subnet.id
+  ]
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
+  vpc_id             = aws_vpc.vpc_analizador.id
+
+  tags = {
+    Name        = "${var.project_name}-tgw-attachment-analizador"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Route Table del Transit Gateway
+resource "aws_ec2_transit_gateway_route_table" "main" {
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
+
+  tags = {
+    Name        = "${var.project_name}-tgw-route-table"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Routes en Transit Gateway para permitir comunicación entre VPCs
+resource "aws_ec2_transit_gateway_route" "cliente_to_analizador" {
+  destination_cidr_block         = aws_vpc.vpc_analizador.cidr_block
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.analizador.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main.id
+}
+
+resource "aws_ec2_transit_gateway_route" "analizador_to_cliente" {
+  destination_cidr_block         = aws_vpc.vpc_cliente.cidr_block
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.cliente.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main.id
+}
+
+# Propagaciones en la route table (las asociaciones son automáticas con default_route_table_association)
+resource "aws_ec2_transit_gateway_route_table_propagation" "cliente" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.cliente.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "analizador" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.analizador.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.main.id
+}
+
+# Routes en VPC Cliente hacia VPC Analizador via Transit Gateway
+resource "aws_route" "cliente_to_analizador_tgw" {
+  route_table_id         = aws_route_table.cliente_public_rt.id
+  destination_cidr_block = aws_vpc.vpc_analizador.cidr_block
+  transit_gateway_id     = aws_ec2_transit_gateway.main.id
+}
+
+# Routes en VPC Analizador hacia VPC Cliente via Transit Gateway
+resource "aws_route" "analizador_to_cliente_tgw" {
+  route_table_id         = aws_route_table.analizador_public_rt.id
+  destination_cidr_block = aws_vpc.vpc_cliente.cidr_block
+  transit_gateway_id     = aws_ec2_transit_gateway.main.id
+}
+
+# También en la subnet privada del analizador
+resource "aws_route" "analizador_private_to_cliente_tgw" {
+  route_table_id         = aws_route_table.analizador_private_rt.id
+  destination_cidr_block = aws_vpc.vpc_cliente.cidr_block
+  transit_gateway_id     = aws_ec2_transit_gateway.main.id
+}
+
+############################################
+# Traffic Mirroring (Target = Transit Gateway Attachment -> NLB)
+############################################
+# Usar Transit Gateway Attachment como target
+# Flujo: Traffic Mirror Session -> Transit Gateway (via attachment) -> Routes -> NLB -> Sensor
+# Esto permite que el tráfico mirrored cruce VPCs correctamente
+# Traffic Mirror Target usando NLB
+# Nota: Transit Gateway NO puede ser usado directamente como target en Terraform
+# El Transit Gateway ya está configurado para routing entre VPCs
+# El tráfico mirrored irá: Session -> NLB -> Sensor
+# Transit Gateway permite conectividad entre VPCs para routing general
 resource "aws_ec2_traffic_mirror_target" "analizador_target" {
   network_load_balancer_arn = aws_lb.mirror_nlb.arn
   tags = {
     Name        = "${var.project_name}-analizador-target"
     Environment = var.environment
     Project     = var.project_name
-    Purpose     = "Traffic-Mirror-Target"
+    Purpose     = "Traffic-Mirror-Target-NLB"
     Type        = "Analizador-Target-NLB"
+    Note        = "Transit Gateway configured for VPC connectivity"
   }
 }
 
