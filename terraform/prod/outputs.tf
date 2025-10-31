@@ -50,6 +50,17 @@ output "cliente_eni_id" {
   value       = aws_network_interface.cliente_eni.id
 }
 
+output "cliente_instance_info" {
+  description = "Información de la instancia cliente para acceso SSH"
+  value = {
+    instance_id = aws_instance.cliente_instance.id
+    public_ip   = aws_eip.cliente_instance_eip.public_ip
+    public_dns  = aws_eip.cliente_instance_eip.public_dns
+    ssh_command = "ssh ec2-user@${aws_eip.cliente_instance_eip.public_ip}"
+    logs_cmd    = "ssh ec2-user@${aws_eip.cliente_instance_eip.public_ip} 'sudo tail -f /var/log/gen_traffic.log'"
+  }
+}
+
 # output "cliente_mirror_session_id" {
 #   description = "ID de la VPC Mirror Session del Cliente"
 #   value       = aws_ec2_traffic_mirror_session.cliente_mirror.id
@@ -191,6 +202,11 @@ output "deployment_instructions" {
 output "mirror_nlb_dns" {
   description = "DNS name del NLB para Traffic Mirroring"
   value       = aws_lb.mirror_nlb.dns_name
+}
+
+output "app_nlb_dns" {
+  description = "Public DNS name for FastAPI via NLB (TCP/80)"
+  value       = aws_lb.app_nlb.dns_name
 }
 
 output "mirror_target_id" {
