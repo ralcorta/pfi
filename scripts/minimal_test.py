@@ -87,38 +87,38 @@ def main_loop():
             elapsed = time.time() - start_time
 
             # Fase 1: primeros 10s -> tráfico sintético rápido
-            # if elapsed < 10:
+            if elapsed < 10:
                 # enviar un lote de paquetes sintéticos
-            #     for i in range(25):
-            #         count += 1
-            #        sent = send_packet(sock, bytes(Ether(bytes(eth_packet))))
-            #         # pequeño print reducido para no saturar la consola
-            #         if count % 50 == 0:
-            #             print(f"→ Enviados {count} paquetes (último payload {sent} bytes)")
-            #         #if SEND_INTERVAL:
-            #         #    time.sleep(SEND_INTERVAL)
+                for i in range(25):
+                    count += 1
+                    sent = send_packet(sock, bytes(Ether(bytes(eth_packet))))
+                    # pequeño print reducido para no saturar la consola
+                    if count % 50 == 0:
+                        print(f"→ Enviados {count} paquetes (último payload {sent} bytes)")
+                    if SEND_INTERVAL:
+                        time.sleep(SEND_INTERVAL)
 
             # Fase 2: si hay pcap, enviarlo secuencialmente
-            #elif zeus_packets:
-            print("🚨 Enviando paquetes Zeus desde pcap...")
-            for i, p in enumerate(zeus_packets):
-                # rdpcap retorna un objeto scapy Packet; si el pcap incluye capas de enlace, bytes(p) contiene Ethernet frame.
-                inner = bytes(p)
-                count += 1
-                sent = send_packet(sock, inner)
-                # progresión simple
-                if i % 100 == 0:
-                    print(f"→ Zeus {i+1}/{len(zeus_packets)} | total enviados: {count}")
-                #if SEND_INTERVAL:
-                #    time.sleep(SEND_INTERVAL)
+            elif zeus_packets:
+                print("🚨 Enviando paquetes Zeus desde pcap...")
+                for i, p in enumerate(zeus_packets):
+                    # rdpcap retorna un objeto scapy Packet; si el pcap incluye capas de enlace, bytes(p) contiene Ethernet frame.
+                    inner = bytes(p)
+                    count += 1
+                    sent = send_packet(sock, inner)
+                    # progresión simple
+                    if i % 10000 == 0:
+                        print(f"→ Zeus {i+1}/{len(zeus_packets)} | total enviados: {count}")
+                    if SEND_INTERVAL:
+                        time.sleep(SEND_INTERVAL)
 
-            print("✅ Envío de Zeus completado — reiniciando ciclo de prueba")
-            start_time = time.time()
+                print("✅ Envío de Zeus completado — reiniciando ciclo de prueba")
+                start_time = time.time()
 
-            #else:
-            #    # si no hay pcap disponible, volver a fase de prueba
-            #    print("⚠️ No hay pcap; volviendo a tráfico sintético")
-            #    start_time = time.time()
+            else:
+                # si no hay pcap disponible, volver a fase de prueba
+                print("⚠️ No hay pcap; volviendo a tráfico sintético")
+                start_time = time.time()
 
     except KeyboardInterrupt:
         print("\n🛑 Interrupción por usuario")

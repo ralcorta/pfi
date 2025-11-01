@@ -227,7 +227,7 @@ show_final_info() {
     echo "🌐 URLs de acceso:"
     ALB_DNS=$(cd terraform && terraform output -raw alb_dns 2>/dev/null || echo "No disponible")
     if [ "$ALB_DNS" != "No disponible" ]; then
-        echo "  - Health Check: http://$ALB_DNS/healthz"
+        echo "  - Health Check: http://$ALB_DNS/health"
         echo "  - Stats: http://$ALB_DNS/stats"
         echo "  - Detecciones: http://$ALB_DNS/detections/{tenant_id}"
     else

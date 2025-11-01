@@ -12,7 +12,8 @@ class Environment:
         
         # AWS Configuration
         self.aws_region = os.getenv("AWS_REGION", "us-east-1")
-        self.dynamodb_endpoint = os.getenv("AWS_DYNAMO_DB_ENDPOINT", "http://localhost:8000")
+        # No usar endpoint local por defecto; solo si está definido explícitamente
+        self.dynamodb_endpoint = os.getenv("AWS_DYNAMO_DB_ENDPOINT") or None
         self.dynamodb_table_name = os.getenv("AWS_DYNAMO_DB_TABLE_NAME", "detections")
         
         # Network Configuration
@@ -32,6 +33,10 @@ class Environment:
     
     def _load_env_file(self):
         """Carga variables de entorno desde archivo .env"""
+        # Por defecto NO cargar .env en contenedores. Solo si se habilita explícitamente.
+        if os.getenv("ENABLE_DOTENV") != "1":
+            print("🚫 Saltando carga de .env (habilitar con ENABLE_DOTENV=1)")
+            return
         # Buscar archivo .env en el directorio del sensor
         sensor_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         env_file = os.path.join(sensor_dir, ".env")

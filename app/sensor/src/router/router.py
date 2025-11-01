@@ -15,14 +15,14 @@ def root():
     return {
         "endpoints": [
             "/",
-            "/healthz",
+            "/health",
             "/stats",
             "/detections"
         ]
     }
 
-@router.get("/healthz")
-def healthz():
+@router.get("/health")
+def health():
     """Endpoint de salud del sistema."""
     return {
         "status": "ok",
