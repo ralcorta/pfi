@@ -173,7 +173,7 @@ resource "aws_ecs_cluster" "sensor_cluster" {
 ############################################
 resource "aws_lb" "mirror_nlb" {
   name               = "${var.project_name}-mirror-nlb-pub"
-  internal           = false  # Público para permitir acceso desde VPC del cliente
+  internal           = false # Público para permitir acceso desde VPC del cliente
   load_balancer_type = "network"
   subnets = [
     aws_subnet.analizador_public_subnet.id,
@@ -382,7 +382,7 @@ resource "aws_ec2_traffic_mirror_target" "analizador_target" {
     Environment = var.environment
     Project     = var.project_name
   }
-  
+
   lifecycle {
     create_before_destroy = true
   }
