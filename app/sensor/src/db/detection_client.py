@@ -123,6 +123,36 @@ class DetectionClient:
         self.table.put_item(Item=item)
         print(f"💾 Detección guardada: {item['id']}")
     
+    def has_detection_for_ip(self, vni: int, src_ip: str) -> bool:
+        """
+        Verifica si ya existe una detección previa para esta IP origen y VNI.
+        
+        Args:
+            vni: VNI del cliente
+            src_ip: IP de origen a verificar
+            
+        Returns:
+            True si ya existe una detección previa, False si es nueva
+        """
+        try:
+            # Escanear la tabla buscando detecciones de esta IP para este VNI
+            response = self.table.scan(
+                FilterExpression="vni = :vni AND src_ip = :src_ip",
+                ExpressionAttributeValues={
+                    ":vni": Decimal(vni),
+                    ":src_ip": src_ip
+                },
+                Limit=1  # Solo necesitamos saber si existe al menos una
+            )
+            
+            items = response.get('Items', [])
+            return len(items) > 0
+            
+        except Exception as e:
+            print(f"⚠️  Error verificando detecciones previas para IP {src_ip} y VNI {vni}: {e}")
+            # En caso de error, retornar False para permitir el envío (mejor prevenir que bloquear)
+            return False
+    
     def clear_table(self) -> None:
         """Elimina todos los elementos de la tabla de detecciones."""
         print(f"🗑️  Limpiando tabla de detecciones '{self.table_name}'...")

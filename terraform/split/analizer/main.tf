@@ -172,8 +172,8 @@ resource "aws_ecs_cluster" "sensor_cluster" {
 # NLB (UDP/4789) + TG (ip) + Listener
 ############################################
 resource "aws_lb" "mirror_nlb" {
-  name               = "${var.project_name}-mirror-nlb-pub"
-  internal           = false # Público para permitir acceso desde VPC del cliente
+  name               = "${var.project_name}-mirror-int"
+  internal           = true # INTERNAL es requerido para Traffic Mirroring
   load_balancer_type = "network"
   subnets = [
     aws_subnet.analizador_public_subnet.id,
@@ -237,8 +237,8 @@ resource "aws_ecs_task_definition" "sensor_task" {
   family                   = "${var.project_name}-sensor"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "1024"
+  memory                   = "2048"
   execution_role_arn       = "arn:aws:iam::${var.account_id}:role/LabRole"
   task_role_arn            = "arn:aws:iam::${var.account_id}:role/LabRole"
 
@@ -246,8 +246,8 @@ resource "aws_ecs_task_definition" "sensor_task" {
     {
       name      = "sensor",
       image     = "${aws_ecr_repository.sensor_repo.repository_url}:latest",
-      cpu       = 256,
-      memory    = 512,
+      cpu       = 1024,
+      memory    = 2048,
       essential = true,
       environment = [
         { name = "AWS_REGION", value = var.aws_region },

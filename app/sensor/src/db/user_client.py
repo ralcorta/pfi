@@ -146,6 +146,21 @@ class UserClient:
         except Exception as e:
             print(f"❌ Error obteniendo usuario {email}: {e}")
             raise
+    
+    def get_user_by_vni(self, vni: int) -> Optional[User]:
+        """Obtiene un usuario por su VNI."""
+        try:
+            response = self.table.scan(
+                FilterExpression="vni = :vni",
+                ExpressionAttributeValues={":vni": vni}
+            )
+            items = response.get('Items', [])
+            if items:
+                return self._normalize_user(items[0])
+            return None
+        except Exception as e:
+            print(f"❌ Error obteniendo usuario por VNI {vni}: {e}")
+            return None
 
     def verify_password(self, email: str, password: str) -> bool:
         """

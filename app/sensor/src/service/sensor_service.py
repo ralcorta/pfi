@@ -11,6 +11,8 @@ from scapy.all import Ether, IP, TCP, UDP, Raw
 from app.sensor.src.service.malware_detector import MalwareDetector
 from app.sensor.src.utils.environment import env
 from app.sensor.src.db.detection_client import detection_db
+from app.sensor.src.db.user_client import user_db
+from app.sensor.src.utils.email_service import email_service
 
 from decimal import Decimal
 
@@ -88,6 +90,9 @@ class SensorService:
             while self.running:
                 try:
                     data, addr = await loop.sock_recvfrom(sock, 65535)
+                    
+                    # Log cuando se recibe tráfico UDP
+                    print(f"📥 Tráfico UDP recibido: {len(data)} bytes desde {addr[0]}:{addr[1]} en puerto {env.vxlan_port}")
                     
                     # Intentar parsear como VXLAN (sin logs detallados)
                     try:
@@ -254,8 +259,40 @@ class SensorService:
                     }
                     
                     try:
+                        # Verificar si ya existe una detección previa para esta IP (ANTES de guardar)
+                        is_new_infected_ip = not detection_db.has_detection_for_ip(vni, src_ip)
+                        
+                        # Guardar detección en DynamoDB (siempre se guarda para historial)
                         detection_db.put_detection(detection_data)
                         print(f"💾 Detección guardada en DynamoDB")
+                        
+                        # Solo enviar email si es una IP infectada nueva (primera vez que se detecta)
+                        if is_new_infected_ip:
+                            print(f"🆕 Nueva IP infectada detectada: {src_ip} (VNI: {vni})")
+                            try:
+                                user = user_db.get_user_by_vni(vni)
+                                if user and user.email:
+                                    detection_details = {
+                                        'malware_probability': malware_prob,
+                                        'src_ip': src_ip,
+                                        'dst_ip': dst_ip,
+                                        'src_port': src_port,
+                                        'dst_port': dst_port,
+                                        'protocol': protocol_name,
+                                        'timestamp': detection_data.get('timestamp')
+                                    }
+                                    email_service.send_malware_alert_email(
+                                        to_email=user.email,
+                                        vni=vni,
+                                        detection_details=detection_details
+                                    )
+                                else:
+                                    print(f"⚠️  No se encontró usuario para VNI {vni}, no se enviará email de alerta")
+                            except Exception as e:
+                                print(f"⚠️  Error enviando email de alerta (no crítico): {e}")
+                        else:
+                            print(f"ℹ️  IP {src_ip} ya tiene detecciones previas, no se enviará email duplicado")
+                        
                     except Exception as e:
                         print(f"❌ Error guardando detección: {e}")
             
