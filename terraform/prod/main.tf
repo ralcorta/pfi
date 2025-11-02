@@ -602,14 +602,3 @@ resource "aws_ec2_traffic_mirror_session" "cliente_mirror" {
   description              = "Cliente -> Analizador via NLB UDP/4789"
   tags                     = { Name = "${var.project_name}-cliente-mirror-session" }
 }
-
-############################################
-# OUTPUTS
-############################################
-output "nlb_vxlan_dns" {
-  value = aws_lb.mirror_nlb.dns_name
-}
-
-output "cliente_public_ip" {
-  value = aws_eip.cliente_instance_eip.public_ip
-}

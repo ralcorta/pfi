@@ -32,10 +32,11 @@ def create_vxlan_packet(inner_packet: bytes, vni: int = 256) -> bytes:
     return udp_payload
 
 def send_pcap_to_sensor(pcap_file: str, host: str = "localhost", port: int = 4789, 
-                        delay: float = 0.0, max_packets: int = None):
+                        delay: float = 0.0, max_packets: int = None, vni: int = 256):
     """Lee un PCAP y envía los paquetes al sensor envolviéndolos en VXLAN."""
     
     print(f"📖 Leyendo archivo PCAP: {pcap_file}")
+    print(f"🎯 Configuración: VNI={vni}, Host={host}:{port}")
     
     try:
         # Leer PCAP
@@ -69,8 +70,8 @@ def send_pcap_to_sensor(pcap_file: str, host: str = "localhost", port: int = 478
                     inner_packet = Ether() / Raw(load=bytes(packet))
                     inner_bytes = bytes(inner_packet)
                 
-                # Crear paquete VXLAN
-                vxlan_packet = create_vxlan_packet(inner_bytes, vni=256)
+                # Crear paquete VXLAN con el VNI especificado
+                vxlan_packet = create_vxlan_packet(inner_bytes, vni=vni)
                 
                 # Enviar paquete
                 sock.sendto(vxlan_packet, (host, port))
@@ -139,6 +140,12 @@ if __name__ == "__main__":
         default=None,
         help="Máximo número de paquetes a enviar (default: todos)"
     )
+    parser.add_argument(
+        "--vni",
+        type=int,
+        default=256,
+        help="VNI (Virtual Network Identifier) para VXLAN (default: 256)"
+    )
     
     args = parser.parse_args()
     
@@ -147,5 +154,6 @@ if __name__ == "__main__":
         args.host,
         args.port,
         args.delay,
-        args.max_packets
+        args.max_packets,
+        args.vni
     )

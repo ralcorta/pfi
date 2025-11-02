@@ -10,7 +10,9 @@ services:
     environment:
       - AWS_REGION=us-east-1
       - AWS_DYNAMO_DB_TABLE_NAME=detections
+      - AWS_USERS_TABLE_NAME=users
       - AWS_DYNAMO_DB_ENDPOINT=http://dynamodb-local:8000
+      - TRAFFIC_MIRROR_TARGET_ID=tmt-local-dev
       - VXLAN_PORT=4789
       - HTTP_PORT=8080
       - WORKERS=4
@@ -18,6 +20,13 @@ services:
       - WINDOW_SECONDS=3.0
       - MAX_PKTS_PER_WINDOW=256
       - LOG_LEVEL=info
+      # Email Configuration (Resend.com)
+      - EMAIL_ENABLED=true
+      - EMAIL_FROM_ADDRESS=onboarding@resend.dev
+      - RESEND_API_KEY=re_byHwbEM6_EzJE1EazpsaierfrAGPaJe7p
+      - BASE_URL=http://localhost:8080
+      - DASHBOARD_URL=http://localhost:5173
+      - JWT_SECRET_KEY=your-secret-key-change-in-production-please-use-strong-secret-key-here
       # For local development
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy

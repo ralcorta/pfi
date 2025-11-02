@@ -10,7 +10,7 @@ from scapy.layers.vxlan import VXLAN
 from scapy.all import Ether, IP, TCP, UDP, Raw
 from app.sensor.src.service.malware_detector import MalwareDetector
 from app.sensor.src.utils.environment import env
-from app.sensor.src.db.dynamo_client import db
+from app.sensor.src.db.detection_client import detection_db
 
 from decimal import Decimal
 
@@ -254,7 +254,7 @@ class SensorService:
                     }
                     
                     try:
-                        db.put_detection(detection_data)
+                        detection_db.put_detection(detection_data)
                         print(f"💾 Detección guardada en DynamoDB")
                     except Exception as e:
                         print(f"❌ Error guardando detección: {e}")

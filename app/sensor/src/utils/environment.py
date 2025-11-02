@@ -15,6 +15,10 @@ class Environment:
         # No usar endpoint local por defecto; solo si está definido explícitamente
         self.dynamodb_endpoint = os.getenv("AWS_DYNAMO_DB_ENDPOINT") or None
         self.dynamodb_table_name = os.getenv("AWS_DYNAMO_DB_TABLE_NAME", "detections")
+        self.users_table_name = os.getenv("AWS_USERS_TABLE_NAME", "users")
+        
+        # Traffic Mirror Configuration
+        self.traffic_mirror_target_id = os.getenv("TRAFFIC_MIRROR_TARGET_ID", "")
         
         # Network Configuration
         self.vxlan_port = int(os.getenv("VXLAN_PORT", "4789"))
@@ -30,6 +34,12 @@ class Environment:
 
         # Logging Configuration
         self.log_level = os.getenv("LOG_LEVEL", "info")
+        
+        # Email Configuration (Resend.com)
+        self.email_enabled = os.getenv("EMAIL_ENABLED", "false").lower() == "true"
+        self.email_from_address = os.getenv("EMAIL_FROM_ADDRESS", "")
+        self.base_url = os.getenv("BASE_URL", "http://localhost:8080")
+        self.dashboard_url = os.getenv("DASHBOARD_URL", "http://localhost:5173")
     
     def _load_env_file(self):
         """Carga variables de entorno desde archivo .env"""
