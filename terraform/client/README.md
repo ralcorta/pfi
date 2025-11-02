@@ -18,7 +18,7 @@ El analizador debe estar desplegado primero y la API debe estar funcionando.
 ### Pasos
 
 ```bash
-cd terraform/split/client
+cd terraform/client
 
 # Editar terraform.tfvars con tu email
 # client_email = "tu-email@example.com"

@@ -52,6 +52,9 @@ resource "aws_route_table" "analizador_public_rt" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw_analizador.id
   }
+  # Nota: No agregamos rutas específicas hacia clientes aquí.
+  # El Transit Gateway con default_route_table_propagation = "enable"
+  # automáticamente propagará las rutas de todos los VPCs conectados.
   tags = {
     Name        = "${var.project_name}-analizador-public-rt"
     Environment = var.environment
@@ -61,6 +64,11 @@ resource "aws_route_table" "analizador_public_rt" {
 
 resource "aws_route_table" "analizador_private_rt" {
   vpc_id = aws_vpc.vpc_analizador.id
+
+  # Nota: No agregamos rutas específicas hacia clientes aquí.
+  # El Transit Gateway con default_route_table_propagation = "enable"
+  # automáticamente propagará las rutas de todos los VPCs conectados.
+
   tags = {
     Name        = "${var.project_name}-analizador-private-rt"
     Environment = var.environment
@@ -389,6 +397,33 @@ resource "aws_ec2_traffic_mirror_target" "analizador_target" {
 }
 
 ############################################
+# TRANSIT GATEWAY (conecta VPC Analizador <-> VPC Cliente)
+############################################
+resource "aws_ec2_transit_gateway" "main" {
+  description                     = "TGW VPC Cliente <-> VPC Analizador"
+  default_route_table_association = "enable"
+  default_route_table_propagation = "enable"
+  dns_support                     = "enable"
+  vpn_ecmp_support                = "enable"
+  tags = {
+    Name        = "${var.project_name}-tgw"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "analizador" {
+  subnet_ids         = [aws_subnet.analizador_public_subnet.id, aws_subnet.analizador_private_subnet.id]
+  transit_gateway_id = aws_ec2_transit_gateway.main.id
+  vpc_id             = aws_vpc.vpc_analizador.id
+  tags = {
+    Name        = "${var.project_name}-tgw-attach-analizador"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+############################################
 # S3 BUCKET PARA DASHBOARD (Static Website Hosting)
 ############################################
 resource "aws_s3_bucket" "dashboard_bucket" {
@@ -502,4 +537,14 @@ output "dashboard_url" {
 output "dashboard_website_domain" {
   description = "Dominio regional del bucket S3 (para CloudFront u otros servicios)"
   value       = aws_s3_bucket.dashboard_bucket.bucket_regional_domain_name
+}
+
+output "transit_gateway_id" {
+  description = "ID del Transit Gateway para conectar VPCs"
+  value       = aws_ec2_transit_gateway.main.id
+}
+
+output "vpc_analizador_cidr" {
+  description = "CIDR de la VPC del analizador"
+  value       = aws_vpc.vpc_analizador.cidr_block
 }

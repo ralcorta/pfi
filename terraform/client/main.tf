@@ -50,6 +50,14 @@ resource "aws_route_table" "cliente_public_rt" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw_cliente.id
   }
+  # Ruta hacia VPC Analizador via Transit Gateway (si está configurado)
+  dynamic "route" {
+    for_each = local.transit_gateway_id_to_use != "" ? [1] : []
+    content {
+      cidr_block         = local.vpc_1_cidr_to_use
+      transit_gateway_id = local.transit_gateway_id_to_use
+    }
+  }
   tags = {
     Name        = "${var.project_name}-cliente-public-rt"
     Environment = var.environment
@@ -172,12 +180,52 @@ resource "aws_instance" "cliente_instance" {
 }
 
 ############################################
+# TRANSIT GATEWAY ATTACHMENT (conecta VPC Cliente al TGW)
+############################################
+resource "aws_ec2_transit_gateway_vpc_attachment" "cliente" {
+  count = local.transit_gateway_id_to_use != "" ? 1 : 0
+
+  subnet_ids         = [aws_subnet.cliente_public_subnet.id]
+  transit_gateway_id = local.transit_gateway_id_to_use
+  vpc_id             = aws_vpc.vpc_cliente.id
+  tags = {
+    Name        = "${var.project_name}-tgw-attach-cliente"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+############################################
 # TRAFFIC MIRRORING (Filter + Session -> Target del analizador)
 ############################################
 
+############################################
+# LOCALS - Valores obtenidos del analizador o variables
+############################################
+locals {
+  # Obtener valores del remote state del analizador (con fallback a variables)
+  # try() permite que falle gracefully si el remote state no existe
+  analizer_api_base_url = try(
+    "${data.terraform_remote_state.analizer.outputs.api_base_url}/v1/clients/terraform-config",
+    ""
+  )
+
+  api_url_to_use = var.api_url != "" ? var.api_url : (
+    local.analizer_api_base_url != "" ? local.analizer_api_base_url : ""
+  )
+
+  transit_gateway_id_to_use = var.transit_gateway_id != "" ? var.transit_gateway_id : (
+    try(data.terraform_remote_state.analizer.outputs.transit_gateway_id, "")
+  )
+
+  vpc_1_cidr_to_use = var.vpc_1_cidr != "" ? var.vpc_1_cidr : (
+    try(data.terraform_remote_state.analizer.outputs.vpc_analizador_cidr, "10.10.0.0/16")
+  )
+}
+
 # Obtener configuración automática desde la API
 data "http" "client_config" {
-  url = "${var.api_url}?email=${urlencode(var.client_email)}"
+  url = "${local.api_url_to_use}?email=${urlencode(var.client_email)}"
 
   request_headers = {
     Accept = "application/json"

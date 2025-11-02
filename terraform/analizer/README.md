@@ -12,7 +12,7 @@ Infraestructura del analizador que recibe y procesa tráfico duplicado de los cl
 ## Despliegue
 
 ```bash
-cd terraform/split/analizer
+cd terraform/analizer
 
 # Inicializar
 terraform init

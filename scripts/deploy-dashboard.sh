@@ -6,7 +6,7 @@
 set -e
 
 # Leer configuración desde terraform.tfvars si existe
-TERRAFORM_DIR="${1:-terraform/split/analizer}"
+TERRAFORM_DIR="${1:-terraform/analizer}"
 if [ -f "${TERRAFORM_DIR}/terraform.tfvars" ]; then
     AWS_REGION=$(grep -E "^aws_region" "${TERRAFORM_DIR}/terraform.tfvars" | cut -d'"' -f2 | head -1 || echo "us-east-1")
     PROJECT_NAME=$(grep -E "^project_name" "${TERRAFORM_DIR}/terraform.tfvars" | cut -d'"' -f2 | head -1 || echo "sensor-analyzer")

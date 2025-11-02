@@ -1,5 +1,5 @@
 ############################################
-# VARIABLES
+# VARIABLES - CLIENTE
 ############################################
 
 variable "aws_region" { default = "us-east-1" }
@@ -13,7 +13,7 @@ variable "tags" {
 }
 
 ############################################
-# AVAILABILITY ZONES (compartidas)
+# AVAILABILITY ZONES
 ############################################
 variable "availability_zone_1" {
   description = "Primera zona de disponibilidad"
@@ -23,14 +23,7 @@ variable "availability_zone_2" {
 }
 
 ############################################
-# ANALIZADOR
-############################################
-variable "vpc_1_cidr" { default = "10.10.0.0/16" }
-variable "vpc_1_public_subnet_cidr" { default = "10.10.1.0/24" }
-variable "vpc_1_private_subnet_cidr" { default = "10.10.2.0/24" }
-
-############################################
-# CLIENTE
+# VPC CLIENTE
 ############################################
 variable "vpc_2_cidr" { default = "10.20.0.0/16" }
 variable "vpc_2_public_subnet_cidr" { default = "10.20.1.0/24" }
@@ -52,6 +45,26 @@ variable "client_email" {
 }
 
 variable "api_url" {
-  description = "URL base de la API para obtener la configuracion del cliente para Terraform"
+  description = <<-EOT
+    URL completa del endpoint de la API para obtener la configuración del cliente.
+    Debe incluir el endpoint completo: http://<nlb-dns>/v1/clients/terraform-config
+    Si esta vacio (default), se obtendra automaticamente del remote state del analizador.
+    
+    Ejemplo: http://sensor-analyzer-app-nlb-xxx.elb.us-east-1.amazonaws.com/v1/clients/terraform-config
+  EOT
   type        = string
+  default     = ""
 }
+
+variable "transit_gateway_id" {
+  description = "ID del Transit Gateway para conectar VPCs. Si está vacio, se obtendra automaticamente del remote state del analizador."
+  type        = string
+  default     = ""
+}
+
+variable "vpc_1_cidr" {
+  description = "CIDR de la VPC del analizador (para rutas Transit Gateway). Si está vacio, se obtendra automaticamente del remote state del analizador."
+  type        = string
+  default     = ""
+}
+

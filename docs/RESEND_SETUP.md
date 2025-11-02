@@ -14,12 +14,14 @@ Guía simple para configurar el envío de emails con Resend.com.
 ### 2. Verificar Dominio o Email
 
 **Opción A: Usar dominio verificado (recomendado para producción)**
+
 1. Ve a **Domains** en Resend
 2. Agrega tu dominio
 3. Configura los registros DNS según las instrucciones
 4. Una vez verificado, puedes usar cualquier email @tudominio.com
 
 **Opción B: Usar email de prueba (solo para desarrollo)**
+
 - Resend proporciona `onboarding@resend.dev` que funciona sin verificación
 
 ### 3. Configurar Variables de Entorno
@@ -34,7 +36,7 @@ RESEND_API_KEY=re_xxxxxxxxxxxxx
 
 ### 4. Configurar en Terraform
 
-Edita `terraform/split/analizer/terraform.tfvars`:
+Edita `terraform/analizer/terraform.tfvars`:
 
 ```hcl
 enable_email_service = true
@@ -43,6 +45,7 @@ resend_api_key       = "re_xxxxxxxxxxxxx"
 ```
 
 Luego aplica:
+
 ```bash
 terraform apply
 ```
@@ -66,4 +69,3 @@ terraform apply
 
 - [Documentación de Resend](https://resend.com/docs)
 - [API Reference](https://resend.com/docs/api-reference/emails/send-email)
-
