@@ -10,7 +10,8 @@ Antes de empezar, asegúrate de tener:
 - AWS CLI configurado con credenciales válidas
 - Acceso a una cuenta de AWS con permisos suficientes para crear VPCs, EC2, ECS, Load Balancers, etc.
 - Una clave SSH existente en AWS (o crear una nueva)
-- Docker (opcional, solo si vas a construir la imagen del sensor manualmente)
+- Docker (necesario si usas los scripts automatizados, o si vas a construir la imagen del sensor manualmente)
+- Node.js y npm (necesario si usas los scripts para desplegar el dashboard, o si lo construyes manualmente)
 
 ## Arquitectura General
 
@@ -21,6 +22,69 @@ El sistema consta de dos VPCs separadas:
 2. **VPC del Cliente**: Contiene una instancia EC2 que envía su tráfico al analizador mediante AWS Traffic Mirroring. Puede haber múltiples clientes, cada uno con su propia VPC.
 
 Las VPCs se conectan a través de un Transit Gateway, y el tráfico se espeja desde las instancias cliente hacia el analizador usando VXLAN sobre UDP en el puerto 4789.
+
+## Método de Despliegue
+
+Hay dos formas de desplegar la infraestructura:
+
+1. **Despliegue automatizado con scripts** (recomendado): Usa los scripts en la carpeta `scripts/` que automatizan todo el proceso.
+2. **Despliegue manual con Terraform**: Ejecutas los comandos de Terraform manualmente paso a paso.
+
+### Despliegue Automatizado con Scripts
+
+Si prefieres automatizar todo el proceso, puedes usar los scripts que están en la carpeta `scripts/`. Estos scripts se encargan de ejecutar todos los pasos necesarios en el orden correcto.
+
+#### Despliegue Completo Automático
+
+Para desplegar todo de una vez (analizador, imagen del sensor, dashboard y cliente):
+
+```bash
+cd scripts
+chmod +x *.sh
+./00-run-all.sh
+```
+
+Este script ejecuta secuencialmente:
+
+1. Despliegue del analizador con Terraform
+2. Construcción y subida de la imagen del sensor a ECR
+3. Compilación y despliegue del dashboard en S3
+4. Despliegue del cliente con Terraform
+5. Envío de tráfico de prueba (opcional)
+
+#### Despliegue Paso a Paso
+
+Si prefieres ejecutar cada paso por separado, puedes usar los scripts individuales:
+
+```bash
+# 1. Desplegar el analizador
+./01-deploy-analizer.sh
+
+# 2. Subir la imagen del sensor a ECR
+./02-push-sensor-image.sh
+
+# 3. Desplegar el dashboard en S3
+./03-deploy-dashboard.sh
+
+# 4. Desplegar el cliente
+./04-deploy-client.sh
+```
+
+**Ventajas de usar los scripts:**
+
+- Automatizan tareas repetitivas (login a ECR, construcción de imágenes, etc.)
+- Validan que los prerrequisitos estén cumplidos
+- Muestran mensajes claros de progreso
+- Manejan errores y detienen el proceso si algo falla
+- Actualizan automáticamente el servicio ECS cuando subes una nueva imagen
+
+**Nota importante**: Los scripts asumen que los archivos `terraform.tfvars` ya están configurados correctamente en `terraform/analizer/` y `terraform/client/`. Asegúrate de revisar y ajustar esos archivos antes de ejecutar los scripts, especialmente el `client_email` en el módulo cliente.
+
+Si prefieres tener más control sobre cada paso o entender mejor qué está pasando, puedes seguir con el despliegue manual que se explica a continuación.
+
+## Despliegue Manual con Terraform
+
+Si prefieres hacer el despliegue manualmente o los scripts no se adaptan a tu caso, puedes seguir estos pasos:
 
 ## Despliegue del Analizador
 
@@ -63,6 +127,7 @@ terraform plan
 ```
 
 Revisa que los recursos propuestos sean los esperados. Deberías ver:
+
 - Una VPC con subnets públicas y privadas
 - Un ECS cluster con task definition
 - Dos Network Load Balancers (uno interno para mirroring, uno público para la API)
@@ -167,6 +232,7 @@ terraform plan
 ```
 
 Deberías ver que:
+
 - Se crea una nueva VPC para el cliente
 - Se crea una instancia EC2
 - Se configura un Traffic Mirror Filter con reglas para TCP y UDP
@@ -206,6 +272,7 @@ También puedes conectarte a la instancia del cliente y generar algo de tráfico
 ### El despliegue del analizador falla con errores de permisos
 
 Verifica que tu usuario/rol de AWS tenga permisos para crear todos los recursos necesarios. Los más comunes que suelen faltar son:
+
 - `ec2:CreateTransitGateway`
 - `ecs:*` (para crear clusters, servicios, etc.)
 - `ecr:*` (para crear repositorios)
@@ -214,6 +281,7 @@ Verifica que tu usuario/rol de AWS tenga permisos para crear todos los recursos 
 ### El servicio ECS no inicia las tareas
 
 Revisa:
+
 1. Que la imagen del contenedor esté en ECR y tenga el tag `latest`.
 2. Los logs de CloudWatch para ver errores del contenedor.
 3. Que los security groups permitan el tráfico necesario (puerto 8080 para health checks, 4789 para VXLAN).
@@ -222,6 +290,7 @@ Revisa:
 ### El despliegue del cliente falla al consultar la API
 
 Posibles causas:
+
 1. El email no está registrado en el sistema. Regístralo primero usando la API o el dashboard.
 2. La API no está disponible. Verifica que el servicio ECS esté corriendo y que el NLB tenga el target group saludable.
 3. La URL de la API es incorrecta. Si usas `api_url` manualmente, asegúrate de que sea la correcta y que incluya el endpoint completo: `http://<nlb-dns>/v1/clients/terraform-config`
@@ -236,6 +305,7 @@ Posibles causas:
 ### Conflictos de CIDR
 
 Si tienes conflictos con redes existentes, ajusta los CIDRs en `terraform.tfvars`. Por defecto:
+
 - Analizador: `10.10.0.0/16`
 - Cliente: `10.20.0.0/16`
 
@@ -279,4 +349,3 @@ Una vez desplegado todo:
 4. Monitorea los logs de CloudWatch para ver el tráfico espejado y las detecciones.
 
 Si necesitas hacer cambios en la infraestructura, simplemente edita los archivos `.tf` y ejecuta `terraform plan` y `terraform apply` nuevamente. Terraform se encargará de actualizar solo lo que cambió.
-
