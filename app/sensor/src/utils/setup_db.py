@@ -1,6 +1,3 @@
-"""
-Setup script for DynamoDB table creation.
-"""
 import os
 import sys
 import boto3
@@ -8,8 +5,7 @@ from botocore.exceptions import ClientError
 from app.sensor.src.utils.environment import env
 
 def create_dynamodb_table():
-    """Create DynamoDB table for local development or AWS"""
-    print("\n🗄️ Setting up DynamoDB table...")
+    print("\nSetting up DynamoDB table...")
     
     try:
         endpoint_url = env.dynamodb_endpoint
@@ -17,7 +13,7 @@ def create_dynamodb_table():
         table_name = env.dynamodb_table_name
         
         if endpoint_url:
-            print(f"🔧 Using local DynamoDB: {endpoint_url}")
+            print(f"Using local DynamoDB: {endpoint_url}")
             dynamodb = boto3.resource(
                 'dynamodb',
                 endpoint_url=endpoint_url,
@@ -26,7 +22,7 @@ def create_dynamodb_table():
                 aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY', 'dummy')
             )
         else:
-            print(f"☁️ Using AWS DynamoDB in region: {region}")
+            print(f"Using AWS DynamoDB in region: {region}")
             dynamodb = boto3.resource('dynamodb', region_name=region)
         
         try:
@@ -54,33 +50,31 @@ def create_dynamodb_table():
                 ],
                 BillingMode='PAY_PER_REQUEST'
             )
-            print(f"✅ Created table: {table_name}")
+            print(f"Created table: {table_name}")
             return True
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceInUseException':
-                print(f"✅ Table {table_name} already exists")
+                print(f"Table {table_name} already exists")
                 return True
             else:
-                print(f"❌ Error creating table: {e}")
+                print(f"Error creating table: {e}")
                 return False
                 
     except Exception as e:
-        print(f"❌ Error setting up DynamoDB: {e}")
-        print("💡 Make sure DynamoDB Local is running on port 8000")
+        print(f"Error setting up DynamoDB: {e}")
+        print("Make sure DynamoDB Local is running on port 8000")
         return False
 
 def main():
-    """Main setup function"""
-    print("🚀 Setting up DynamoDB Table")
+    print("Setting up DynamoDB Table")
     print("=" * 40)
     
-    # Create DynamoDB table
     if create_dynamodb_table():
-        print("\n✅ DynamoDB setup completed successfully!")
+        print("\nDynamoDB setup completed successfully!")
         return True
     else:
-        print("\n❌ DynamoDB setup failed!")
+        print("\nDynamoDB setup failed!")
         return False
 
 if __name__ == "__main__":

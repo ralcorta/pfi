@@ -1,8 +1,3 @@
-"""
-Servicio del sensor de malware.
-Maneja el procesamiento de tráfico UDP y análisis de paquetes.
-"""
-
 import asyncio
 import socket
 from collections import deque
@@ -17,42 +12,35 @@ from app.sensor.src.utils.email_service import email_service
 from decimal import Decimal
 
 class SensorService:
-    """Servicio principal del sensor de malware."""
     
     def __init__(self):
         self.running = False
         self.udp_task = None
         self.malware_detector = None
-        self.processing_semaphore = None  # Se inicializa en start()
-        # Buffer circular de paquetes (últimos 20)
+        self.processing_semaphore = None
         self.packet_buffer = deque(maxlen=20)
-        self.buffer_lock = None  # Se inicializa en start()
-        self.processing_pending = False  # Flag para evitar múltiples tareas de procesamiento
+        self.buffer_lock = None
+        self.processing_pending = False
     
     async def start(self):
-        """Inicia el servicio del sensor."""
-        print("🚀 Iniciando servicio del sensor...")
+        print("Starting sensor service...")
         
         try:
-            # Inicializar semáforo para limitar procesamiento concurrente
-            self.processing_semaphore = asyncio.Semaphore(1)  # Solo 1 batch procesándose a la vez
-            # Inicializar lock para acceso thread-safe al buffer
+            self.processing_semaphore = asyncio.Semaphore(1)
             self.buffer_lock = asyncio.Lock()
             
-            # Inicializar detector de malware
             model_path = "/app/app/sensor/model/model.keras"
             self.malware_detector = MalwareDetector(model_path)
-            print("✅ Detector de malware inicializado")
+            print("Malware detector initialized")
             
             self.udp_task = asyncio.create_task(self._udp_listener())
             self.running = True
-            print("✅ Servicio del sensor iniciado correctamente")
+            print("Sensor service started successfully")
         except Exception as e:
-            print(f"❌ Error iniciando servicio del sensor: {e}")
+            print(f"Error starting sensor service: {e}")
     
     async def stop(self):
-        """Detiene el servicio del sensor."""
-        print("🛑 Deteniendo servicio del sensor...")
+        print("Stopping sensor service...")
         self.running = False
         
         if self.udp_task and not self.udp_task.done():
@@ -62,10 +50,9 @@ class SensorService:
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
         
-        print("🛑 Servicio del sensor detenido")
+        print("Sensor service stopped")
     
     async def _udp_listener(self):
-        """Escucha tráfico UDP en puerto 4789 en segundo plano."""
         loop = asyncio.get_running_loop()
         sock = None
         
@@ -74,16 +61,15 @@ class SensorService:
             sock.bind(("0.0.0.0", env.vxlan_port))
             sock.setblocking(False)
             
-            print(f"🔍 Escuchando tráfico UDP en puerto {env.vxlan_port}")
-            print(f"📍 Socket bindeado en: 0.0.0.0:{env.vxlan_port}")
+            print(f"Listening for UDP traffic on port {env.vxlan_port}")
+            print(f"Socket bound to: 0.0.0.0:{env.vxlan_port}")
             
-            # Task para heartbeat cada 2 minutos (menos frecuente)
             async def heartbeat():
-                await asyncio.sleep(10)  # Esperar 10s antes del primer heartbeat
+                await asyncio.sleep(10)
                 while self.running:
-                    await asyncio.sleep(120)  # Cada 2 minutos
+                    await asyncio.sleep(120)
                     if self.running:
-                        print(f"Listener UDP activo en puerto {env.vxlan_port}")
+                        print(f"UDP listener active on port {env.vxlan_port}")
             
             asyncio.create_task(heartbeat())
             
@@ -91,35 +77,24 @@ class SensorService:
                 try:
                     data, addr = await loop.sock_recvfrom(sock, 65535)
                     
-                    # Log cuando se recibe tráfico UDP
-                    print(f"📥 Tráfico UDP recibido: {len(data)} bytes desde {addr[0]}:{addr[1]} en puerto {env.vxlan_port}")
+                    print(f"UDP traffic received: {len(data)} bytes from {addr[0]}:{addr[1]} on port {env.vxlan_port}")
                     
-                    # Intentar parsear como VXLAN (sin logs detallados)
                     try:
                         vx = VXLAN(data)
                         inner = bytes(vx.payload)
-                        vni = int(vx.vni)
-                        
-                        # Agregar paquete directamente al buffer (operación rápida, sin crear tarea)
+                        vni = int(vx.vni)                        
                         await self._add_packet_to_buffer(inner, vni)
                         
-                    except Exception as e:
-                        # Solo loggear errores de parsing si son frecuentes (cada 100 paquetes)
-                        self._packet_parse_errors = getattr(self, '_packet_parse_errors', 0) + 1
-                        if self._packet_parse_errors % 100 == 0:
-                            print(f"⚠️  Error parseando VXLAN (total: {self._packet_parse_errors}): {type(e).__name__}")
-                        
                 except BlockingIOError:
-                    # No hay datos disponibles, esperar un poco
                     await asyncio.sleep(0.1)
                     continue
                 except (asyncio.CancelledError, OSError) as e:
-                    print(f"🛑 Listener UDP cancelado: {e}")
+                    print(f"UDP listener cancelled: {e}")
                     break
                     
         except Exception as e:
-            print(f"❌ Error crítico en listener UDP: {e}")
-            print("⚠️  Continuando con servidor HTTP...")
+            print(f"Critical error in UDP listener: {e}")
+            print("Continuing with HTTP server...")
             
         finally:
             if sock:
@@ -127,100 +102,76 @@ class SensorService:
                     sock.close()
                 except:
                     pass
-            print("🛑 Listener UDP detenido")
+            print("UDP listener stopped")
     
     async def _add_packet_to_buffer(self, inner: bytes, vni: int):
-        """Agrega un paquete al buffer circular (últimos 20). Operación rápida."""
         async with self.buffer_lock:
-            # Agregar paquete al buffer (automáticamente descarta el más antiguo si hay más de 20)
             self.packet_buffer.append((inner, vni))
             
-            # Si el buffer tiene 20 paquetes y no hay un procesamiento pendiente, procesar el batch
             if len(self.packet_buffer) >= 20 and not self.processing_pending:
-                # Copiar los paquetes del buffer antes de procesarlos
                 batch = list(self.packet_buffer)
-                # Limpiar el buffer para empezar a acumular el siguiente batch
                 self.packet_buffer.clear()
-                # Marcar que hay procesamiento pendiente
                 self.processing_pending = True
-                # Procesar el batch en background (sin bloquear el listener)
                 asyncio.create_task(self._process_batch_and_reset_flag(batch))
     
     async def _process_batch_and_reset_flag(self, batch: list):
-        """Procesa un batch y resetea el flag de procesamiento pendiente."""
         try:
             await self._process_batch_safe(batch)
         finally:
-            # Resetear flag después de procesar (incluso si hay error)
             async with self.buffer_lock:
                 self.processing_pending = False
             
-            # Verificar si el buffer se llenó mientras procesábamos
             async with self.buffer_lock:
                 if len(self.packet_buffer) >= 20 and not self.processing_pending:
-                    # Hay más paquetes listos para procesar
                     batch = list(self.packet_buffer)
                     self.packet_buffer.clear()
                     self.processing_pending = True
                     asyncio.create_task(self._process_batch_and_reset_flag(batch))
     
     async def _process_batch_safe(self, batch: list):
-        """Procesa un batch de 20 paquetes con límite de concurrencia."""
         async with self.processing_semaphore:
             await self._process_batch(batch)
     
     async def _process_batch(self, batch: list):
-        """Procesa un batch de 20 paquetes."""
         if not self.malware_detector:
             return
         
         try:
-            print(f"🔍 Procesando batch de {len(batch)} paquetes...")
+            print(f"Processing batch of {len(batch)} packets...")
             
-            # Procesar cada paquete del batch en el detector
-            # El detector tiene su propio buffer interno que se va llenando
             loop = asyncio.get_running_loop()
             
-            # Procesar todos los paquetes del batch
             for inner, vni in batch:
-                # Ejecutar detección en thread pool para no bloquear
                 detection_result = await loop.run_in_executor(
-                    None,  # Usar default executor (thread pool)
+                    None,
                     self.malware_detector.detect_malware,
                     inner
                 )
                 
-                # Solo procesar resultados que no sean None (buffer del detector lleno)
                 if detection_result is None:
-                    continue  # Buffer del detector aún no está lleno
+                    continue
                 elif detection_result.error:
-                    # Solo loggear errores si ocurren frecuentemente
                     self._detection_errors = getattr(self, '_detection_errors', 0) + 1
                     if self._detection_errors % 10 == 0:
-                        print(f"⚠️ Error en detección ({self._detection_errors} errores): {detection_result.error}")
+                        print(f"Error in detection ({self._detection_errors} errors): {detection_result.error}")
                     continue
                 
-                # Buffer lleno y resultado válido
                 malware_prob = detection_result.malware_probability
                 is_malware = detection_result.is_malware
                 packet_info = detection_result.packet_info
                 
-                # Mostrar información del paquete (con validación de None)
                 if packet_info is None:
-                    print(f"⚠️ PacketInfo es None para detección de malware (prob: {malware_prob:.2%})")
+                    print(f"PacketInfo is None for malware detection (prob: {malware_prob:.2%})")
                     continue
                 
-                # Extraer información con valores por defecto apropiados
                 src_ip = packet_info.src_ip if packet_info.src_ip else 'N/A'
                 dst_ip = packet_info.dst_ip if packet_info.dst_ip else 'N/A'
                 src_port = packet_info.src_port if packet_info.src_port is not None and packet_info.src_port != 0 else 'N/A'
                 dst_port = packet_info.dst_port if packet_info.dst_port is not None and packet_info.dst_port != 0 else 'N/A'
                 protocol = packet_info.protocol if packet_info.protocol is not None and packet_info.protocol != 0 else 'N/A'
                 
-                # Convertir protocolo a nombre
                 protocol_name = {6: 'TCP', 17: 'UDP'}.get(protocol, f'Protocol-{protocol}' if protocol != 'N/A' else 'N/A')
                 
-                # Si no tenemos información del paquete, intentar parsearlo manualmente para debug
                 if src_ip == 'N/A' and dst_ip == 'N/A':
                     try:
                         parsed = Ether(inner)
@@ -237,14 +188,11 @@ class SensorService:
                                 dst_port = ip_layer[UDP].dport
                                 protocol_name = 'UDP'
                     except Exception as e:
-                        # Si falla el parsing manual, mantener los valores por defecto
                         pass
                 
-                # Solo loggear si es malware o probabilidad muy alta (>50%)
                 if is_malware or malware_prob > 0.5:
-                    print(f"🚨 MALWARE DETECTADO! Probabilidad: {malware_prob:.2%} | VNI: {vni} | {src_ip}:{src_port} → {dst_ip}:{dst_port} ({protocol_name})")
+                    print(f"🚨 MALWARE DETECTED! Probability: {malware_prob:.2%} | VNI: {vni} | {src_ip}:{src_port} → {dst_ip}:{dst_port} ({protocol_name})")
                     
-                    # Guardar detección en DynamoDB
                     detection_data = {
                         'malware_probability': Decimal(str(malware_prob)),
                         'is_malware': is_malware,
@@ -259,16 +207,13 @@ class SensorService:
                     }
                     
                     try:
-                        # Verificar si ya existe una detección previa para esta IP (ANTES de guardar)
                         is_new_infected_ip = not detection_db.has_detection_for_ip(vni, src_ip)
                         
-                        # Guardar detección en DynamoDB (siempre se guarda para historial)
                         detection_db.put_detection(detection_data)
-                        print(f"💾 Detección guardada en DynamoDB")
+                        print(f"Detection saved in DynamoDB")
                         
-                        # Solo enviar email si es una IP infectada nueva (primera vez que se detecta)
                         if is_new_infected_ip:
-                            print(f"🆕 Nueva IP infectada detectada: {src_ip} (VNI: {vni})")
+                            print(f"New infected IP detected: {src_ip} (VNI: {vni})")
                             try:
                                 user = user_db.get_user_by_vni(vni)
                                 if user and user.email:
@@ -287,19 +232,18 @@ class SensorService:
                                         detection_details=detection_details
                                     )
                                 else:
-                                    print(f"⚠️  No se encontró usuario para VNI {vni}, no se enviará email de alerta")
+                                    print(f"No user found for VNI {vni}, no email alert will be sent")
                             except Exception as e:
-                                print(f"⚠️  Error enviando email de alerta (no crítico): {e}")
+                                print(f"Error sending email alert (not critical): {e}")
                         else:
-                            print(f"ℹ️  IP {src_ip} ya tiene detecciones previas, no se enviará email duplicado")
+                            print(f"IP {src_ip} already has previous detections, no email duplicate will be sent")
                         
                     except Exception as e:
-                        print(f"❌ Error guardando detección: {e}")
+                        print(f"Error saving detection: {e}")
             
-            print(f"✅ Batch procesado ({len(batch)} paquetes)")
+            print(f"Batch processed ({len(batch)} packets)")
             
         except Exception as e:
-            print(f"❌ Error procesando batch: {e}")
+            print(f"Error processing batch: {e}")
 
-# Instancia global del servicio
 sensor_service = SensorService()

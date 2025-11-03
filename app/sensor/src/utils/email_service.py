@@ -1,7 +1,3 @@
-"""
-Servicio simple para envío de emails usando Resend.com.
-"""
-
 import os
 import requests
 from typing import Optional
@@ -10,7 +6,6 @@ from app.sensor.src.utils.environment import env
 
 
 class EmailService:
-    """Servicio simple para enviar emails mediante Resend.com."""
     
     def __init__(self):
         self.api_key = os.getenv("RESEND_API_KEY", "")
@@ -18,27 +13,16 @@ class EmailService:
         self.enabled = env.email_enabled
         
         if not self.enabled:
-            print("⚠️  Envío de emails deshabilitado (EMAIL_ENABLED=false)")
+            print("Email sending disabled (EMAIL_ENABLED=false)")
         elif not self.api_key:
-            print("⚠️  RESEND_API_KEY no configurado, emails deshabilitados")
+            print("RESEND_API_KEY not configured, emails disabled")
     
     def send_welcome_email(self, to_email: str, vni: int, password_token: str) -> bool:
-        """
-        Envía un email de bienvenida al usuario registrado con URL para establecer contraseña.
-        
-        Args:
-            to_email: Email del destinatario
-            vni: VNI único asignado al cliente
-            password_token: Token único para establecer contraseña
-            
-        Returns:
-            True si el email se envió correctamente, False en caso contrario
-        """
         if not self.enabled or not self.api_key:
             return False
         
         if not self.from_email:
-            print(f"⚠️  EMAIL_FROM_ADDRESS no configurado, saltando envío de email")
+            print(f"EMAIL_FROM_ADDRESS not configured, skipping email sending")
             return False
         
         setup_password_url = f"{env.dashboard_url}/auth/setup-password?token={password_token}"
@@ -81,42 +65,24 @@ class EmailService:
             response.raise_for_status()
             
             result = response.json()
-            print(f"✅ Email de bienvenida enviado a {to_email} (ID: {result.get('id', 'N/A')})")
+            print(f"Welcome email sent to {to_email} (ID: {result.get('id', 'N/A')})")
             return True
             
         except requests.exceptions.RequestException as e:
-            print(f"❌ Error enviando email a {to_email}: {e}")
+            print(f"Error sending email to {to_email}: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"   Respuesta: {e.response.text}")
+                print(f"   Response: {e.response.text}")
             return False
         except Exception as e:
-            print(f"❌ Error inesperado enviando email a {to_email}: {e}")
+            print(f"Error unexpected sending email to {to_email}: {e}")
             return False
     
     def send_malware_alert_email(self, to_email: str, vni: int, detection_details: dict) -> bool:
-        """
-        Envía un email de alerta cuando se detecta malware.
-        
-        Args:
-            to_email: Email del destinatario
-            vni: VNI del cliente afectado
-            detection_details: Diccionario con detalles de la detección
-                - malware_probability: Probabilidad de malware (0-1)
-                - src_ip: IP de origen
-                - dst_ip: IP de destino
-                - src_port: Puerto de origen
-                - dst_port: Puerto de destino
-                - protocol: Protocolo (TCP/UDP)
-                - timestamp: Timestamp de la detección
-        
-        Returns:
-            True si el email se envió correctamente, False en caso contrario
-        """
         if not self.enabled or not self.api_key:
             return False
         
         if not self.from_email:
-            print(f"⚠️  EMAIL_FROM_ADDRESS no configurado, saltando envío de email")
+            print(f"EMAIL_FROM_ADDRESS not configured, skipping email sending")
             return False
         
         malware_prob = detection_details.get('malware_probability', 0.0)
@@ -126,7 +92,6 @@ class EmailService:
         dst_port = detection_details.get('dst_port', 'N/A')
         protocol = detection_details.get('protocol', 'N/A')
         
-        # Formatear timestamp
         timestamp = detection_details.get('timestamp', 0)
         if timestamp:
             from datetime import datetime
@@ -143,8 +108,7 @@ class EmailService:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
-        # Calcular severidad basada en probabilidad
+
         if malware_prob >= 0.9:
             severity = "CRÍTICA"
             severity_color = "#d32f2f"
@@ -223,19 +187,18 @@ class EmailService:
             response.raise_for_status()
             
             result = response.json()
-            print(f"✅ Email de alerta de malware enviado a {to_email} (ID: {result.get('id', 'N/A')})")
+            print(f"Malware alert email sent to {to_email} (ID: {result.get('id', 'N/A')})")
             return True
             
         except requests.exceptions.RequestException as e:
-            print(f"❌ Error enviando email de alerta a {to_email}: {e}")
+            print(f"Error sending malware alert email to {to_email}: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"   Respuesta: {e.response.text}")
+                print(f"   Response: {e.response.text}")
             return False
         except Exception as e:
-            print(f"❌ Error inesperado enviando email de alerta a {to_email}: {e}")
+            print(f"Error unexpected sending malware alert email to {to_email}: {e}")
             return False
 
 
-# Instancia global
 email_service = EmailService()
 
