@@ -115,20 +115,11 @@ train: ## Entrenar el modelo principal de detección
 	poetry run python models/training/detection/3_entrenar_modelo.py
 	@echo "$(GREEN)✅ Modelo entrenado$(RESET)"
 
-.PHONY: evaluate
-evaluate: ## Evaluar el rendimiento del modelo entrenado
-	@echo "$(BLUE)📊 Evaluando modelo...$(RESET)"
-	poetry run python models/training/detection/4_evaluar_modelo.py
-	@echo "$(GREEN)✅ Modelo evaluado$(RESET)"
-
-.PHONY: train-all
-train-all: ## Flujo completo de entrenamiento (preprocesar + dividir + entrenar + evaluar)
-	@echo "$(BLUE)🚀 Iniciando flujo completo de entrenamiento...$(RESET)"
+# Flujo completo de entrenamiento (preprocesar + dividir + entrenar + evaluar)
+train-all:
 	make preprocess
 	make split-data
 	make train
-	make evaluate
-	@echo "$(GREEN)✅ Entrenamiento completo finalizado$(RESET)"
 
 # =============================================================================
 # 4. ENTRENAMIENTO ADVERSARIAL
@@ -140,26 +131,9 @@ obfuscate: ## Ofuscar datos para simular ataques adversarios
 	poetry run python models/training/ofuscacion/1_ofuscar_datos.py
 	@echo "$(GREEN)✅ Datos ofuscados$(RESET)"
 
-.PHONY: retrain-adversarial
-retrain-adversarial: ## Re-entrenar modelo con datos ofuscados
-	@echo "$(BLUE)🔄 Re-entrenando modelo adversarial...$(RESET)"
-	poetry run python models/training/ofuscacion/2_reentrenar_modelo.py
-	@echo "$(GREEN)✅ Modelo adversarial entrenado$(RESET)"
-
-.PHONY: evaluate-adversarial
-evaluate-adversarial: ## Evaluar modelo entrenado adversarialmente
-	@echo "$(BLUE)📊 Evaluando modelo adversarial...$(RESET)"
-	poetry run python models/training/ofuscacion/3_evaluar_modelo_adversarial.py
-	@echo "$(GREEN)✅ Modelo adversarial evaluado$(RESET)"
-
-.PHONY: train-adversarial-all
-train-adversarial-all: ## Flujo completo de entrenamiento adversarial
-	@echo "$(BLUE)🚀 Iniciando entrenamiento adversarial completo...$(RESET)"
+# Flujo completo de entrenamiento adversarial
+train-adversarial-all:
 	make obfuscate
-	make retrain-adversarial
-	make evaluate-adversarial
-	@echo "$(GREEN)✅ Entrenamiento adversarial completo finalizado$(RESET)"
-
 
 # =============================================================================
 # 5. DOCKER Y CONTAINERIZACIÓN
@@ -198,10 +172,10 @@ docker-clean: ## Limpiar imágenes Docker
 # =============================================================================
 # 6. HERRAMIENTAS DE DESARROLLO
 # =============================================================================
+# Comandos para mantener la calidad del código y realizar pruebas
 
-.PHONY: format
-format: ## Formatear código con Black
-	@echo "$(BLUE)🎨 Formateando código...$(RESET)"
+# Formatear código con Black
+format:
 	poetry run black .
 	@echo "$(GREEN)✅ Código formateado$(RESET)"
 
@@ -240,7 +214,7 @@ check-all: ## Verificar todo: formato + lint + tipos + pruebas
 
 
 # =============================================================================
-# 7 ENTRENAMIENTO COMPLETO CON ADVERSARIAL RL - VERSIÓN SIMPLE
+# 7. COMANDOS DE CONVENIENCIA
 # =============================================================================
 
 .PHONY: train-adversarial-rl
