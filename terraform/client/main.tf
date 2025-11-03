@@ -334,23 +334,8 @@ resource "aws_ec2_traffic_mirror_session" "cliente_mirror" {
 ############################################
 # Outputs útiles
 ############################################
-output "ec2_instance_id" {
-  description = "ID de la instancia EC2 del cliente"
-  value       = aws_instance.cliente_instance.id
-}
-
-output "ec2_public_ip" {
-  description = "IP pública de la instancia EC2 del cliente"
-  value       = aws_eip.cliente_instance_eip.public_ip
-}
-
-output "traffic_mirror_session_id" {
-  description = "ID de la sesión de Traffic Mirroring"
-  value       = aws_ec2_traffic_mirror_session.cliente_mirror.id
-}
-
 output "mirror_session_id" {
-  description = "ID de la sesión de Traffic Mirroring (alias)"
+  description = "ID de la sesión de Traffic Mirroring"
   value       = aws_ec2_traffic_mirror_session.cliente_mirror.id
 }
 
