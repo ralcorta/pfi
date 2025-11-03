@@ -350,7 +350,9 @@ resource "aws_ecs_service" "sensor_service" {
   platform_version = "1.4.0"
 
   network_configuration {
-    subnets          = [aws_subnet.analizador_public_subnet.id, aws_subnet.analizador_private_subnet.id]
+    # Solo usar subnet pública para garantizar acceso a internet (ECR)
+    # La subnet privada no tiene NAT Gateway configurado
+    subnets          = [aws_subnet.analizador_public_subnet.id]
     security_groups  = [aws_security_group.ecs_mirror.id]
     assign_public_ip = true
   }

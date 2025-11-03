@@ -1,32 +1,33 @@
 #!/bin/bash
 #
-# Script para compilar y desplegar el dashboard frontend a S3
-# Configurado para funcionar como SPA (Single Page Application)
+# Script 3: Desplegar Dashboard en S3
+# Compila y despliega el dashboard frontend a S3 como SPA
 #
 
 set -e
 
-# Colores para output
+# Colores
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parámetros
-TERRAFORM_DIR="${1:-terraform/analizer}"
-DASHBOARD_DIR="${2:-dashboard}"
+TERRAFORM_DIR="terraform/analizer"
+DASHBOARD_DIR="dashboard"
 
-echo -e "${BLUE}🚀 Desplegando Dashboard a S3${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}🌐 Paso 3: Desplegando Dashboard en S3${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# 1. Verificar que Terraform está disponible
+# Verificar que Terraform está disponible
 if ! command -v terraform &> /dev/null; then
     echo -e "${RED}❌ Error: terraform no está instalado${NC}"
     exit 1
 fi
 
-# 2. Obtener información del bucket desde Terraform
+# Obtener información del bucket desde Terraform
 echo -e "${BLUE}📋 Obteniendo información del bucket desde Terraform...${NC}"
 cd "${TERRAFORM_DIR}" || exit 1
 
@@ -34,14 +35,12 @@ cd "${TERRAFORM_DIR}" || exit 1
 BUCKET_NAME=$(terraform output -raw dashboard_bucket_name 2>/dev/null || echo "")
 API_BASE_URL=$(terraform output -raw api_base_url 2>/dev/null || echo "")
 
-# Obtener región desde variables.tf (buscar la línea con default)
+# Obtener región
 AWS_REGION=$(grep 'variable "aws_region"' "${TERRAFORM_DIR}/variables.tf" | grep -o 'default = "[^"]*"' | sed 's/default = "\(.*\)"/\1/' 2>/dev/null || echo "us-east-1")
 if [ -z "$AWS_REGION" ] || [ "$AWS_REGION" = "" ]; then
-    # Intentar obtener de terraform.tfvars si existe
     if [ -f "${TERRAFORM_DIR}/terraform.tfvars" ]; then
         AWS_REGION=$(grep '^aws_region' "${TERRAFORM_DIR}/terraform.tfvars" | sed 's/.*= *"\(.*\)".*/\1/' || echo "us-east-1")
     fi
-    # Si aún no tenemos región, usar por defecto
     if [ -z "$AWS_REGION" ] || [ "$AWS_REGION" = "" ]; then
         AWS_REGION="us-east-1"
     fi
@@ -49,7 +48,7 @@ fi
 
 if [ -z "$BUCKET_NAME" ]; then
     echo -e "${RED}❌ Error: No se pudo obtener el nombre del bucket desde Terraform${NC}"
-    echo "Asegúrate de que Terraform está inicializado y que el bucket existe."
+    echo "💡 Asegúrate de que el analizer está desplegado primero"
     exit 1
 fi
 
@@ -66,7 +65,7 @@ echo ""
 # Volver al directorio raíz
 cd - > /dev/null
 
-# 3. Compilar el dashboard
+# Compilar el dashboard
 echo -e "${BLUE}🔨 Compilando el dashboard...${NC}"
 cd "${DASHBOARD_DIR}" || exit 1
 
@@ -77,7 +76,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Compilar con la URL de la API correcta
-echo "🔨 Construyendo para producción..."
+echo -e "${BLUE}🔨 Construyendo para producción...${NC}"
 VITE_API_BASE_URL="${API_BASE_URL}" npm run build:ci
 
 if [ ! -d "dist" ]; then
@@ -91,18 +90,7 @@ echo ""
 # Volver al directorio raíz
 cd - > /dev/null
 
-# # 4. Copiar index.html a rutas SPA necesarias
-# # Esto es necesario para que S3 sirva el archivo manteniendo la URL del navegador
-# # cuando se accede a rutas como /auth/setup-password
-# echo -e "${BLUE}🔧 Configurando rutas SPA (copiando index.html a rutas específicas)...${NC}"
-# mkdir -p /tmp/spa_routes/auth/setup-password
-
-# # Copiar el index.html principal a la ruta setup-password
-# # Vue Router manejará la ruta correctamente porque la URL del navegador se mantiene
-# cp "${DASHBOARD_DIR}/dist/index.html" /tmp/spa_routes/auth/setup-password/index.html
-
-# 5. Sincronizar con S3
-echo ""
+# Sincronizar con S3
 echo -e "${BLUE}⬆️  Subiendo archivos a S3...${NC}"
 aws s3 sync "${DASHBOARD_DIR}/dist/" "s3://${BUCKET_NAME}" \
     --region "${AWS_REGION}" \
@@ -110,26 +98,15 @@ aws s3 sync "${DASHBOARD_DIR}/dist/" "s3://${BUCKET_NAME}" \
     --exclude "*.map" \
     --cache-control "public, max-age=31536000, immutable"
 
-# Nota: Ya no es necesario copiar index.html a rutas específicas porque:
-# 1. El router de Vue ahora maneja las rutas correctamente (catch-all al final)
-# 2. El error_document de S3 ya está configurado para servir index.html en rutas no encontradas
-# 3. Vue Router manejará el routing del lado del cliente correctamente
-
 echo -e "${GREEN}✅ Archivos subidos exitosamente!${NC}"
-
-# 6. Obtener la URL del website
 echo ""
+
+# Mostrar URL del dashboard
 echo -e "${BLUE}🔗 URL del dashboard:${NC}"
-WEBSITE_URL=$(aws s3api get-bucket-website --bucket "${BUCKET_NAME}" --region "${AWS_REGION}" --query 'WebsiteConfiguration.IndexDocument.Suffix' --output text 2>/dev/null || echo "")
-if [ -n "${WEBSITE_URL}" ]; then
-    echo -e "${GREEN}   http://${BUCKET_NAME}.s3-website-${AWS_REGION}.amazonaws.com${NC}"
-    echo ""
-    echo -e "${BLUE}💡 Nota: Esta es la URL del website endpoint de S3.${NC}"
-    echo "   Para usar un dominio personalizado, configura CloudFront o un dominio personalizado."
-else
-    echo -e "${YELLOW}   https://${BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com${NC}"
-fi
-
+echo -e "${GREEN}   http://${BUCKET_NAME}.s3-website-${AWS_REGION}.amazonaws.com${NC}"
 echo ""
-echo -e "${GREEN}✅ Dashboard desplegado exitosamente!${NC}"
+
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✅ Paso 3 completado${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 

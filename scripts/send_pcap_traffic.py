@@ -143,8 +143,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vni",
         type=int,
-        default=256,
-        help="VNI (Virtual Network Identifier) para VXLAN (default: 256)"
+        default=3001,
+        help="VNI (Virtual Network Identifier) para VXLAN (default: 3001)"
     )
     
     args = parser.parse_args()
