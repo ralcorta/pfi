@@ -1,6 +1,3 @@
-############################################
-# VPC CLIENTE
-############################################
 resource "aws_vpc" "vpc_cliente" {
   cidr_block           = var.vpc_2_cidr
   enable_dns_hostnames = true
@@ -50,7 +47,6 @@ resource "aws_route_table" "cliente_public_rt" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw_cliente.id
   }
-  # Ruta hacia VPC Analizador via Transit Gateway (si está configurado)
   dynamic "route" {
     for_each = local.transit_gateway_id_to_use != "" ? [1] : []
     content {
@@ -84,9 +80,6 @@ resource "aws_route_table_association" "cliente_private_rta" {
   route_table_id = aws_route_table.cliente_private_rt.id
 }
 
-############################################
-# SG + ENI + EC2 de ejemplo
-############################################
 resource "aws_security_group" "cliente_instances" {
   name_prefix = "${var.project_name}-cliente"
   vpc_id      = aws_vpc.vpc_cliente.id
@@ -179,9 +172,6 @@ resource "aws_instance" "cliente_instance" {
   }
 }
 
-############################################
-# TRANSIT GATEWAY ATTACHMENT (conecta VPC Cliente al TGW)
-############################################
 resource "aws_ec2_transit_gateway_vpc_attachment" "cliente" {
   count = local.transit_gateway_id_to_use != "" ? 1 : 0
 
@@ -195,16 +185,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "cliente" {
   }
 }
 
-############################################
-# TRAFFIC MIRRORING (Filter + Session -> Target del analizador)
-############################################
-
-############################################
-# LOCALS - Valores obtenidos del analizador o variables
-############################################
 locals {
-  # Obtener valores del remote state del analizador (con fallback a variables)
-  # try() permite que falle gracefully si el remote state no existe
   analizer_api_base_url = try(
     "${data.terraform_remote_state.analizer.outputs.api_base_url}/v1/clients/terraform-config",
     ""
@@ -223,7 +204,7 @@ locals {
   )
 }
 
-# Obtener configuración automática desde la API
+
 data "http" "client_config" {
   url = "${local.api_url_to_use}?email=${urlencode(var.client_email)}"
 
@@ -232,19 +213,14 @@ data "http" "client_config" {
   }
 }
 
-# Parsear la respuesta JSON
 locals {
-  client_config = jsondecode(data.http.client_config.response_body)
-
-  # Validar que la respuesta contiene los campos requeridos
+  client_config            = jsondecode(data.http.client_config.response_body)
   traffic_mirror_target_id = try(local.client_config.traffic_mirror_target_id, null)
   vni_cliente              = try(local.client_config.vni_cliente, null)
 }
 
-# Validación: verificar que la API retorno los datos necesarios
 resource "null_resource" "validate_config" {
   lifecycle {
-    # Validar que los campos requeridos están presentes
     precondition {
       condition     = local.traffic_mirror_target_id != null && local.vni_cliente != null
       error_message = "La API no retorno traffic_mirror_target_id y vni_cliente. Respuesta: ${data.http.client_config.response_body}"
@@ -331,9 +307,6 @@ resource "aws_ec2_traffic_mirror_session" "cliente_mirror" {
   }
 }
 
-############################################
-# Outputs útiles
-############################################
 output "mirror_session_id" {
   description = "ID de la sesión de Traffic Mirroring"
   value       = aws_ec2_traffic_mirror_session.cliente_mirror.id

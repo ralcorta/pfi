@@ -1,6 +1,3 @@
-############################################
-# VPC ANALIZADOR
-############################################
 resource "aws_vpc" "vpc_analizador" {
   cidr_block           = var.vpc_1_cidr
   enable_dns_hostnames = true
@@ -52,9 +49,6 @@ resource "aws_route_table" "analizador_public_rt" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw_analizador.id
   }
-  # Nota: No agregamos rutas específicas hacia clientes aquí.
-  # El Transit Gateway con default_route_table_propagation = "enable"
-  # automáticamente propagará las rutas de todos los VPCs conectados.
   tags = {
     Name        = "${var.project_name}-analizador-public-rt"
     Environment = var.environment
@@ -64,11 +58,6 @@ resource "aws_route_table" "analizador_public_rt" {
 
 resource "aws_route_table" "analizador_private_rt" {
   vpc_id = aws_vpc.vpc_analizador.id
-
-  # Nota: No agregamos rutas específicas hacia clientes aquí.
-  # El Transit Gateway con default_route_table_propagation = "enable"
-  # automáticamente propagará las rutas de todos los VPCs conectados.
-
   tags = {
     Name        = "${var.project_name}-analizador-private-rt"
     Environment = var.environment
@@ -86,9 +75,7 @@ resource "aws_route_table_association" "analizador_private_rta" {
   route_table_id = aws_route_table.analizador_private_rt.id
 }
 
-############################################
-# SECURITY GROUP (ECS Sensor)
-############################################
+
 resource "aws_security_group" "ecs_mirror" {
   name_prefix = "${var.project_name}-ecs-mirror"
   vpc_id      = aws_vpc.vpc_analizador.id
@@ -96,7 +83,6 @@ resource "aws_security_group" "ecs_mirror" {
 
   lifecycle { create_before_destroy = true }
 
-  # Health (debug)
   ingress {
     from_port   = 8080
     to_port     = 8080
@@ -105,7 +91,6 @@ resource "aws_security_group" "ecs_mirror" {
     description = "Health 8080"
   }
 
-  # VXLAN/UDP 4789
   ingress {
     from_port   = 4789
     to_port     = 4789
@@ -114,7 +99,6 @@ resource "aws_security_group" "ecs_mirror" {
     description = "VXLAN UDP/4789"
   }
 
-  # Egress general
   egress {
     from_port   = 0
     to_port     = 0
@@ -129,9 +113,6 @@ resource "aws_security_group" "ecs_mirror" {
   }
 }
 
-############################################
-# ECR (repo imagen sensor)
-############################################
 resource "aws_ecr_repository" "sensor_repo" {
   name                 = "mirror-sensor"
   image_tag_mutability = "MUTABLE"
@@ -160,9 +141,6 @@ resource "aws_ecr_lifecycle_policy" "sensor_repo_policy" {
   })
 }
 
-############################################
-# ECS Cluster
-############################################
 resource "aws_ecs_cluster" "sensor_cluster" {
   name = "${var.project_name}-sensor-cluster"
   setting {
@@ -176,12 +154,9 @@ resource "aws_ecs_cluster" "sensor_cluster" {
   }
 }
 
-############################################
-# NLB (UDP/4789) + TG (ip) + Listener
-############################################
 resource "aws_lb" "mirror_nlb" {
   name               = "${var.project_name}-mirror-int"
-  internal           = true # INTERNAL es requerido para Traffic Mirroring
+  internal           = true
   load_balancer_type = "network"
   subnets = [
     aws_subnet.analizador_public_subnet.id,
@@ -201,7 +176,7 @@ resource "aws_lb_target_group" "vxlan_tg" {
   target_type = "ip"
   vpc_id      = aws_vpc.vpc_analizador.id
 
-  # Health via TCP:8080
+
   health_check {
     enabled             = true
     protocol            = "TCP"
@@ -228,9 +203,6 @@ resource "aws_lb_listener" "vxlan_listener" {
   }
 }
 
-############################################
-# Task Definition + Service (puertos 8080/TCP, 4789/UDP)
-############################################
 resource "aws_cloudwatch_log_group" "sensor_logs" {
   name              = "/ecs/${var.project_name}-sensor"
   retention_in_days = 7
@@ -350,21 +322,17 @@ resource "aws_ecs_service" "sensor_service" {
   platform_version = "1.4.0"
 
   network_configuration {
-    # Solo usar subnet pública para garantizar acceso a internet (ECR)
-    # La subnet privada no tiene NAT Gateway configurado
     subnets          = [aws_subnet.analizador_public_subnet.id]
     security_groups  = [aws_security_group.ecs_mirror.id]
     assign_public_ip = true
   }
 
-  # NLB UDP/4789 -> container:4789
   load_balancer {
     target_group_arn = aws_lb_target_group.vxlan_tg.arn
     container_name   = "sensor"
     container_port   = 4789
   }
 
-  # NLB TCP/80 -> container:8080
   load_balancer {
     target_group_arn = aws_lb_target_group.http_tg2.arn
     container_name   = "sensor"
@@ -383,9 +351,6 @@ resource "aws_ecs_service" "sensor_service" {
   }
 }
 
-############################################
-# TRAFFIC MIRROR TARGET (para que los clientes apunten)
-############################################
 resource "aws_ec2_traffic_mirror_target" "analizador_target" {
   network_load_balancer_arn = aws_lb.mirror_nlb.arn
   tags = { Name = "${var.project_name}-analizador-target-nlb"
@@ -398,9 +363,6 @@ resource "aws_ec2_traffic_mirror_target" "analizador_target" {
   }
 }
 
-############################################
-# TRANSIT GATEWAY (conecta VPC Analizador <-> VPC Cliente)
-############################################
 resource "aws_ec2_transit_gateway" "main" {
   description                     = "TGW VPC Cliente <-> VPC Analizador"
   default_route_table_association = "enable"
@@ -425,9 +387,6 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "analizador" {
   }
 }
 
-############################################
-# S3 BUCKET PARA DASHBOARD (Static Website Hosting)
-############################################
 resource "aws_s3_bucket" "dashboard_bucket" {
   bucket = "${var.project_name}-dashboard-${var.account_id}"
 
@@ -498,9 +457,6 @@ resource "aws_s3_bucket_cors_configuration" "dashboard_cors" {
   }
 }
 
-############################################
-# Outputs útiles para los clientes
-############################################
 output "traffic_mirror_target_id" {
   description = "ID del Traffic Mirror Target para que los clientes apunten su tráfico"
   value       = aws_ec2_traffic_mirror_target.analizador_target.id

@@ -1,6 +1,3 @@
-############################################
-# PROVIDER & BASE
-############################################
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -14,9 +11,6 @@ provider "aws" {
   default_tags { tags = var.tags }
 }
 
-############################################
-# REMOTE STATE - Leer outputs del analizador
-############################################
 data "terraform_remote_state" "analizer" {
   backend = "local"
 
@@ -24,7 +18,5 @@ data "terraform_remote_state" "analizer" {
     path = "${path.root}/../analizer/terraform.tfstate"
   }
 
-  # Permitir que falle si el analizador no está desplegado todavía
-  # Las variables tendrán valores por defecto que se pueden sobrescribir
 }
 
