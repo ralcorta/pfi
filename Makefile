@@ -115,19 +115,12 @@ train: ## Entrenar el modelo principal de detección
 	poetry run python models/training/detection/3_entrenar_modelo.py
 	@echo "$(GREEN)✅ Modelo entrenado$(RESET)"
 
-.PHONY: evaluate
-evaluate: ## Evaluar el rendimiento del modelo entrenado
-	@echo "$(BLUE)📊 Evaluando modelo...$(RESET)"
-	poetry run python models/training/detection/4_evaluar_modelo.py
-	@echo "$(GREEN)✅ Modelo evaluado$(RESET)"
-
 .PHONY: train-all
 train-all: ## Flujo completo de entrenamiento (preprocesar + dividir + entrenar + evaluar)
 	@echo "$(BLUE)🚀 Iniciando flujo completo de entrenamiento...$(RESET)"
 	make preprocess
 	make split-data
 	make train
-	make evaluate
 	@echo "$(GREEN)✅ Entrenamiento completo finalizado$(RESET)"
 
 # =============================================================================
@@ -210,34 +203,6 @@ lint: ## Verificar estilo de código con Flake8
 	@echo "$(BLUE)🔍 Ejecutando linting...$(RESET)"
 	poetry run flake8 .
 	@echo "$(GREEN)✅ Linting completado$(RESET)"
-
-.PHONY: type-check
-type-check: ## Verificar tipos con MyPy
-	@echo "$(BLUE)🔍 Verificando tipos...$(RESET)"
-	poetry run mypy .
-	@echo "$(GREEN)✅ Verificación de tipos completada$(RESET)"
-
-.PHONY: test
-test: ## Ejecutar todas las pruebas
-	@echo "$(BLUE)🧪 Ejecutando tests...$(RESET)"
-	poetry run pytest
-	@echo "$(GREEN)✅ Tests completados$(RESET)"
-
-.PHONY: test-coverage
-test-coverage: ## Ejecutar tests con coverage
-	@echo "$(BLUE)🧪 Ejecutando tests con coverage...$(RESET)"
-	poetry run pytest --cov=app --cov-report=html
-	@echo "$(GREEN)✅ Tests con coverage completados$(RESET)"
-
-.PHONY: check-all
-check-all: ## Verificar todo: formato + lint + tipos + pruebas
-	@echo "$(BLUE)🔍 Ejecutando verificación completa...$(RESET)"
-	make format
-	make lint
-	make type-check
-	make test
-	@echo "$(GREEN)✅ Verificación completa finalizada$(RESET)"
-
 
 # =============================================================================
 # 7 ENTRENAMIENTO COMPLETO CON ADVERSARIAL RL - VERSIÓN SIMPLE
