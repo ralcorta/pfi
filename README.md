@@ -58,6 +58,7 @@ pfi/
 │   │   ├── ofuscacion/            # Entrenamiento adversarial
 │   │   └── adversarial-reinforcement/  # Reinforcement learning adversarial
 │   ├── data/                      # Datasets y scripts de procesamiento
+│   │   └── backup/                # Datasets (requiere descarga desde Drive)
 │   └── *.keras                    # Modelos entrenados
 │
 ├── terraform/                     # Infraestructura como código
@@ -143,6 +144,16 @@ poetry install
 
 # Activar entorno virtual
 poetry shell
+```
+
+### Datos de Entrenamiento
+
+**Importante:** Si planeas entrenar los modelos, necesitas descargar los datasets completos desde [Google Drive](https://drive.google.com/drive/folders/1xqW6cRqagOp2BbrXrzVPfCTuTyXFAqAH?usp=sharing) y colocarlos en `data/backup/full/` con la siguiente estructura:
+
+```
+data/backup/full/
+├── Benign/    # Archivos PCAP de tráfico benigno
+└── Malware/   # Archivos PCAP de tráfico malicioso
 ```
 
 ### Despliegue
