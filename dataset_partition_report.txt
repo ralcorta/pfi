@@ -1,9 +1,0 @@
-Distribución de clases:
-  Train -> benign: 60865 | malware: 26400
-  Test  -> benign: 43173 | malware: 1496
-
-Partición por PCAP:
-  PCAPs únicos en train: 18
-  PCAPs únicos en test:  5
-  Overlap train/test:    0
-  OK sin leakage
