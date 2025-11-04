@@ -4,7 +4,8 @@ Sistema de análisis de tráfico de red en tiempo real para la detección de ran
 
 ## 📦 Recursos Adicionales
 
-Videos de demostración y archivos del proyecto disponibles en: https://drive.google.com/drive/folders/1xqW6cRqagOp2BbrXrzVPfCTuTyXFAqAH?usp=drive_link
+- **Repositorio GitHub**: https://github.com/ralcorta/pfi
+- **Videos de demostración y archivos del proyecto**: https://drive.google.com/drive/folders/1xqW6cRqagOp2BbrXrzVPfCTuTyXFAqAH?usp=sharing
 
 ## Documentación
 
