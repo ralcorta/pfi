@@ -6,7 +6,7 @@ Este documento describe la arquitectura completa del sistema, cómo se comunican
 
 El sistema está diseñado para analizar tráfico de red en tiempo real usando AWS Traffic Mirroring. Permite que múltiples clientes (cada uno en su propia VPC) envíen una copia de su tráfico a un analizador centralizado que procesa, detecta amenazas y almacena los resultados.
 
-La arquitectura es completamente serverless en el lado del analizador (usa ECS Fargate), lo que elimina la necesidad de gestionar servidores. Los clientes son instancias EC2 simples que pueden estar en cualquier VPC de AWS.
+La arquitectura es completamente serverless en el lado del analizador (usa ECS Fargate), lo que elimina la necesidad de gestionar servidores. En el lado del cliente, **cualquier servicio que se conecte a través de una Elastic Network Interface (ENI) configurada puede tener su tráfico espejado**. Aunque en los ejemplos se muestra una instancia EC2, en producción pueden ser servidores web, bases de datos, contenedores, servicios ECS, o cualquier otro recurso de AWS que genere tráfico de red.
 
 ## Componentes Principales
 
@@ -25,10 +25,12 @@ La VPC del analizador (`10.10.0.0/16` por defecto) contiene todos los componente
 
 Cada cliente tiene su propia VPC (`10.20.0.0/16` por defecto, pero puede variar):
 
-- **Instancia EC2**: Genera el tráfico que será analizado
-- **Traffic Mirror Session**: Configuración que indica qué tráfico espejar y hacia dónde
+- **Elastic Network Interface (ENI)**: Interfaz de red a la que se conectan los servicios del cliente. **Nota importante**: Aunque en los ejemplos y la configuración de Terraform se usa una instancia EC2 para demostración, en producción cualquier servicio del cliente puede conectarse a esta ENI (servidores web, bases de datos, contenedores, servicios ECS, etc.). El tráfico que pase por esta ENI será automáticamente espejado.
+- **Traffic Mirror Session**: Configuración que indica qué tráfico espejar y hacia dónde. Se vincula a la ENI específica.
 - **Traffic Mirror Filter**: Reglas que definen qué paquetes capturar (TCP/UDP, ingress/egress)
 - **Transit Gateway Attachment**: Conexión al Transit Gateway para comunicación entre VPCs
+
+**Sobre la ENI y los servicios del cliente**: La arquitectura está diseñada para que cualquier recurso de AWS que use la ENI configurada (ya sea una EC2, un contenedor ECS, una Lambda con VPC, o cualquier otro servicio) tenga su tráfico espejado automáticamente. La instancia EC2 en los ejemplos es solo una representación simplificada; en la práctica, el cliente puede tener múltiples servicios conectados a diferentes ENIs, y cada una puede tener su propia Traffic Mirror Session configurada.
 
 ### 3. Servicio ECS (Sensor)
 
@@ -46,70 +48,6 @@ Aplicación web estática servida desde S3:
 - **Autenticación**: Login con JWT
 - **Visualización**: Muestra detecciones
 - **Gestión de usuarios**: Registro de clientes
-
-## Diagrama de Arquitectura
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         INTERNET / AWS BACKBONE                          │
-└─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │
-        ┌─────────────────────────────┴─────────────────────────────┐
-        │                                                             │
-        │                    TRANSIT GATEWAY                         │
-        │                  (Conecta todas las VPCs)                   │
-        │                                                             │
-        └────────────┬──────────────────────────┬────────────────────┘
-                     │                          │
-                     │                          │
-    ┌────────────────▼────────────┐    ┌───────▼────────────────────┐
-    │   VPC CLIENTE               │    │   VPC ANALIZADOR            │
-    │   10.20.0.0/16              │    │   10.10.0.0/16              │
-    │                             │    │                             │
-    │  ┌──────────────────────┐   │    │  ┌──────────────────────┐  │
-    │  │  EC2 Instance        │   │    │  │  ECS Fargate Task     │  │
-    │  │  (Genera tráfico)    │   │    │  │  (Sensor Container)  │  │
-    │  └──────────┬───────────┘   │    │  │                      │  │
-    │             │                │    │  │  ┌────────────────┐  │  │
-    │             │                │    │  │  │ Puerto 8080    │  │  │
-    │             │                │    │  │  │ (API HTTP)     │  │  │
-    │             │                │    │  │  └────────┬───────┘  │  │
-    │             │                │    │  │           │          │  │
-    │             │                │    │  │  ┌────────▼───────┐  │  │
-    │             │                │    │  │  │ Puerto 4789    │  │  │
-    │             │                │    │  │  │ (VXLAN UDP)     │  │  │
-    │  ┌──────────▼────────────┐   │    │  │  └────────┬───────┘  │  │
-    │  │ Traffic Mirror        │   │    │  │           │          │  │
-    │  │ Session               │   │    │  └───────────┼──────────┘  │
-    │  │ - VNI: 3001           │   │    │              │             │
-    │  │ - Filter: TCP/UDP    │   │    │              │             │
-    │  └──────────┬────────────┘   │    │              │             │
-    │             │                │    │  ┌───────────▼──────────┐  │
-    │             │ (VXLAN)        │    │  │ NLB Interno          │  │
-    │             │ UDP/4789        │    │  │ (mirror_nlb)         │  │
-    │             │                │    │  │ Target: ECS Task     │  │
-    │             └────────────────┼────┼──┼──────────────────────┘  │
-    │                              │    │  │                         │
-    │                              │    │  │                         │
-    │                              │    │  ┌──────────────────────┐  │
-    │                              │    │  │ NLB Público          │  │
-    │                              │    │  │ (app_nlb)             │  │
-    │                              │    │  │ Puerto 80 → 8080      │  │
-    │                              │    │  └──────────────────────┘  │
-    │                              │    │                             │
-    │                              │    │  ┌──────────────────────┐  │
-    │                              │    │  │ Traffic Mirror       │  │
-    │                              │    │  │ Target               │  │
-    │                              │    │  │ (apunta a NLB)       │  │
-    │                              │    │  └──────────────────────┘  │
-    │                              │    │                             │
-    │                              │    │  ┌──────────────────────┐  │
-    │                              │    │  │ S3 Bucket            │  │
-    │                              │    │  │ (Dashboard)          │  │
-    │                              │    │  └──────────────────────┘  │
-    └──────────────────────────────┘    └─────────────────────────────┘
-```
 
 ## Flujo de Comunicación
 
@@ -147,7 +85,8 @@ Terraform del cliente usa estos valores para crear la Traffic Mirror Session
 Una vez configurado, el tráfico fluye automáticamente:
 
 ```
-1. EC2 Cliente genera tráfico de red (HTTP, HTTPS, SSH, etc.)
+1. Servicio del cliente (EC2, ECS, base de datos, etc.) genera tráfico de red
+   (HTTP, HTTPS, SSH, conexiones de base de datos, etc.) a través de la ENI
    ↓
 2. AWS Traffic Mirroring intercepta el tráfico según las reglas del Filter
    ↓
@@ -169,6 +108,15 @@ Una vez configurado, el tráfico fluye automáticamente:
 ```
 
 **Punto importante**: El tráfico espejado es una copia. El tráfico original sigue su curso normal sin interrupciones. Esto es clave para no afectar la operación del cliente.
+
+**Sobre los servicios del cliente**: La Traffic Mirror Session se configura a nivel de ENI (Elastic Network Interface), no a nivel de instancia o servicio específico. Esto significa que cualquier tráfico que pase por esa ENI será automáticamente espejado, independientemente de qué servicio lo genere. Por ejemplo:
+
+- Si tienes una instancia EC2 con una aplicación web, el tráfico HTTP/HTTPS será espejado
+- Si tienes un servicio ECS con múltiples contenedores usando la misma ENI, todo su tráfico será espejado
+- Si tienes una base de datos RDS o un servicio ElastiCache conectado a través de la ENI, ese tráfico también será espejado
+- Si tienes múltiples servicios en la misma VPC, cada uno puede tener su propia ENI con su propia Traffic Mirror Session configurada
+
+En resumen, el sistema funciona con cualquier recurso de AWS que genere tráfico de red a través de una ENI configurada. La instancia EC2 en los ejemplos de Terraform es solo una forma simple de demostrar el concepto.
 
 ### 3. Comunicación API
 
@@ -375,7 +323,8 @@ El contenedor del sensor envía logs a CloudWatch:
 Para entender mejor cómo funciona todo junto, aquí está el viaje completo de un paquete:
 
 ```
-1. Usuario en EC2 Cliente hace: curl https://example.com
+1. Servicio del cliente (ej: aplicación web, EC2, base de datos, etc.)
+   genera tráfico de red (ej: curl https://example.com, conexión a API, etc.)
    │
    ├─> Tráfico original va a internet normalmente
    │
