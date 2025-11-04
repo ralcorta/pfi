@@ -2,6 +2,10 @@
 
 Sistema de análisis de tráfico de red en tiempo real para la detección de ransomware y malware mediante aprendizaje automático. Utiliza AWS Traffic Mirroring para capturar tráfico de red sin afectar la operación de los servicios del cliente.
 
+## 📦 Recursos Adicionales
+
+Videos de demostración y archivos del proyecto disponibles en: https://drive.google.com/drive/folders/1xqW6cRqagOp2BbrXrzVPfCTuTyXFAqAH?usp=drive_link
+
 ## Documentación
 
 ### Documentación de Despliegue
