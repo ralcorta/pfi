@@ -2,7 +2,7 @@
 
 Sistema de análisis de tráfico de red en tiempo real para la detección de ransomware y malware mediante aprendizaje automático. Utiliza AWS Traffic Mirroring para capturar tráfico de red sin afectar la operación de los servicios del cliente.
 
-## 📦 Recursos Adicionales
+## Recursos Adicionales
 
 - **Repositorio GitHub**: https://github.com/ralcorta/pfi
 - **Videos de demostración y archivos del proyecto**: https://drive.google.com/drive/folders/1xqW6cRqagOp2BbrXrzVPfCTuTyXFAqAH?usp=sharing
@@ -13,7 +13,7 @@ Sistema de análisis de tráfico de red en tiempo real para la detección de ran
 
 La guía completa para desplegar la infraestructura en AWS se encuentra en:
 
-**📄 [`docs/GUIA_DEPLOY.md`](docs/GUIA_DEPLOY.md)**
+** [`docs/GUIA_DEPLOY.md`](docs/GUIA_DEPLOY.md)**
 
 Esta guía incluye:
 
@@ -27,7 +27,7 @@ Esta guía incluye:
 
 La documentación completa de la arquitectura del sistema, componentes y flujo de datos se encuentra en:
 
-**📄 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)**
+** [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)**
 
 Este documento explica:
 
